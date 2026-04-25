@@ -1,0 +1,62 @@
+{
+  "name": "blog-publisher-app",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "dev": "webpack --config webpack.dev.js",
+    "dist": "webpack --config webpack.prod.js",
+    "start": "npm run dev && electron .",
+    "build": "npm run dist && electron-builder"
+  },
+  "devDependencies": {
+    "css-loader": "^7.1.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0",
+    "mini-css-extract-plugin": "^2.10.0",
+    "style-loader": "^4.0.0",
+    "webpack": "^5.104.1",
+    "webpack-cli": "^6.0.1",
+    "webpack-merge": "^6.0.1"
+  },
+  "build": {
+    "appId": "com.example.blogpublisher",
+    "productName": "Blog Publisher",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "*.html",
+      "*.json",
+      "main.js"
+    ],
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Utility"
+    },
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns"
+    }
+  },
+  "dependencies": {
+    "@editorjs/delimiter": "^1.4.2",
+    "@editorjs/editorjs": "^2.31.1",
+    "@editorjs/embed": "^2.8.0",
+    "@editorjs/header": "^2.8.8",
+    "@editorjs/image": "^2.10.3",
+    "@editorjs/inline-code": "^1.5.2",
+    "@editorjs/link": "^2.6.2",
+    "@editorjs/list": "^2.0.9",
+    "@editorjs/marker": "^1.4.0",
+    "@editorjs/paragraph": "^2.11.7",
+    "@editorjs/quote": "^2.7.6",
+    "@editorjs/underline": "^1.2.1"
+  }
+}

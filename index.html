@@ -1,0 +1,183 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Blog Publisher</title>
+    <!-- Font Awesome for icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="./dist/style.css" />
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="app-header">
+          <div class="logo">
+            <i class="fas fa-edit"></i>
+            <h1>Blog Publisher</h1>
+          </div>
+          <div class="logo-subtitle">Editor for HDS</div>
+        </div>
+
+        <div class="post-config" id="sidebar-post-config">
+          <div class="config-section">
+            <h3>Post Details</h3>
+
+            <div class="form-group">
+              <label for="postTitle">Title</label>
+              <input
+                type="text"
+                id="postTitle"
+                placeholder="Enter post title..."
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="postKeyword">Keyword</label>
+              <input
+                type="text"
+                id="postKeyword"
+                placeholder="Enter post keyword..."
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="postExcerpt">Excerpt (Meta)</label>
+              <textarea
+                id="postExcerpt"
+                placeholder="SEO description..."
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h3>Publishing</h3>
+
+            <div class="form-group">
+              <label for="postStatus">Status</label>
+              <select id="postStatus">
+                <option value="publish" selected>Publish</option>
+                <option value="draft">Save as Draft</option>
+                <option value="pending">Pending</option>
+                <option value="private">Private</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="featuredImageUpload">Featured Image</label>
+              <input type="file" id="featuredImageUpload" accept="image/*" />
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-actions">
+          <button class="btn-primary" id="saveBtn">
+            <i class="fas fa-paper-plane"></i>
+            Publish to WordPress
+          </button>
+          <button class="btn-secondary" id="clearBtn">
+            <i class="fas fa-eraser"></i>
+            Clear Editor
+          </button>
+          <button class="btn-danger" id="closeBtn">
+            <i class="fas fa-times"></i>
+            Close App
+          </button>
+        </div>
+      </aside>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <button
+          id="view-editor-btn"
+          class="view-toggle-btn active"
+          title="Editor Mode"
+        >
+          <i class="fas fa-pen-to-square"></i> Editor
+        </button>
+        <button
+          id="view-library-btn"
+          class="view-toggle-btn"
+          title="Library Mode"
+        >
+          <i class="fas fa-folder-open"></i> Library
+        </button>
+        <div class="toolbar-divider"></div>
+        <!-- Existing toolbar buttons... -->
+        <button id="heading-btn" title="Add Heading">
+          <i class="fas fa-heading"></i>
+        </button>
+        <button id="image-btn" title="Add Image">
+          <i class="fas fa-image"></i>
+        </button>
+        <button id="link-btn" title="Add Link">
+          <i class="fas fa-link"></i>
+        </button>
+        <button id="list-btn" title="Add List">
+          <i class="fas fa-list-ul"></i>
+        </button>
+        <button id="quote-btn" title="Add Quote">
+          <i class="fas fa-quote-right"></i>
+        </button>
+      </div>
+
+      <!-- Main Content Area -->
+      <main class="main-content">
+        <div id="editor-area" class="view-container editor-area">
+          <div id="editorjs"></div>
+        </div>
+
+        <div
+          id="library-view"
+          class="view-container library-view"
+          style="display: none"
+        >
+          <!-- Library-header -->
+          <div class="library-header">
+            <h2>Posts Library</h2>
+            <div class="library-controls">
+              <div class="type-toggle">
+                <button class="type-toggle-btn active" data-type="post">
+                  <i class="fas fa-file-lines"></i> Posts
+                </button>
+                <button class="type-toggle-btn" data-type="page">
+                  <i class="fas fa-file"></i> Pages
+                </button>
+              </div>
+
+              <select id="lib-status-filter" class="lib-filter">
+                <option value="any">All Status</option>
+                <option value="publish">Published</option>
+                <option value="draft">Drafts</option>
+                <option value="pending">Pending</option>
+                <option value="private">Private</option>
+              </select>
+
+              <input
+                type="text"
+                id="lib-search"
+                class="lib-search"
+                placeholder="Search..."
+              />
+              <button id="lib-refresh" class="btn-refresh" title="Refresh">
+                <i class="fas fa-sync"></i>
+              </button>
+            </div>
+          </div>
+          <div class="post-list-wrapper"></div>
+          <div class="pagination-wrapper"></div>
+        </div>
+      </main>
+    </div>
+    <script src="./dist/renderer.js"></script>
+    <script>
+      document.getElementById("closeBtn").addEventListener("click", () => {
+        // Close the app (works in Electron)
+        if (window.close) window.close();
+      });
+    </script>
+  </body>
+</html>
