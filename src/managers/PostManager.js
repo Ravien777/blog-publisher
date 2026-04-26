@@ -3,6 +3,9 @@
  * Handles WordPress post/page fetching, validation, sanitization, and pagination.
  * Designed as a standalone, testable OOP class that reuses existing auth/config patterns.
  */
+
+import { cache } from "../utils/CacheManagers.js";
+
 export class PostManager {
   /**
    * @param {string} apiUrl - Base WordPress REST API URL
