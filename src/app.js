@@ -16,6 +16,7 @@ import "./style.css";
 
 import { HtmlToEditorJs } from "./converters/HtmlToEditorJs.js";
 import { PostManager } from "./managers/PostManager.js";
+import { PageManager } from "./managers/PageManager.js";
 import { LibraryView } from "./components/LibraryView.js";
 import { CacheManager, cache } from "./utils/CacheManagers.js";
 
@@ -287,22 +288,29 @@ function createPostManager() {
 let libraryViewInstance = null;
 
 function initLibraryView() {
-  // LibraryView now handles its own instantiation and auto-loads on creation
-  // We just need to ensure the container exists.
   const container = document.getElementById("library-view");
   if (!container) return;
 
-  // Ensure we only create one instance per session or handle disposal if needed
-  // For now, simple singleton pattern
+  // Ensure single instance per session
   if (!window.libraryInstance) {
-    const manager = createPostManager();
+    const config = getActiveConfig();
+    const token = tokenManagerMultiSite.getToken();
+    if (!config.WORDPRESS_API || !token) return; // Safety check
 
-    window.libraryInstance = new LibraryView(container, manager, (post) => {
-      switchView("editor");
-      loadPostIntoEditor(post);
-    });
+    // Instantiate both managers with shared config/auth
+    const postManager = new PostManager(config.WORDPRESS_API, token);
+    const pageManager = new PageManager(config.WORDPRESS_API, token);
+
+    window.libraryInstance = new LibraryView(
+      container,
+      { post: postManager, page: pageManager }, // Manager map
+      (post) => {
+        switchView("editor");
+        loadPostIntoEditor(post);
+      },
+    );
   } else {
-    // If switching back to library, refresh data
+    // Refresh data when switching back to library
     window.libraryInstance.load();
   }
 }
@@ -1170,8 +1178,8 @@ function getDefaultData() {
 }
 
 /**
- * Load an existing WordPress post into Editor.js and populate sidebar
- * @param {Object} post - Sanitized post object from PostManager
+ * Load an existing WordPress post/page into Editor.js and populate sidebar
+ * @param {Object} post - Sanitized post object from PostManager/PageManager
  */
 async function loadPostIntoEditor(post) {
   if (!window.editorInstance) {
@@ -1190,11 +1198,18 @@ async function loadPostIntoEditor(post) {
     // 3. Render blocks in Editor.js
     await window.editorInstance.render(editorData);
 
-    // 4. Populate sidebar fields
-    document.getElementById("postTitle").value = post.titleRaw || "";
-    document.getElementById("postExcerpt").value = post.excerptRaw || "";
-    document.getElementById("postSlug").value = post.slug || "";
-    document.getElementById("postStatus").value = post.status || "draft";
+    // 4. Safely populate sidebar fields (prevents null crashes)
+    const titleEl = document.getElementById("postTitle");
+    if (titleEl) titleEl.value = post.titleRaw || "";
+
+    const excerptEl = document.getElementById("postExcerpt");
+    if (excerptEl) excerptEl.value = post.excerptRaw || "";
+
+    const slugEl = document.getElementById("postSlug");
+    if (slugEl) slugEl.value = post.slug || "";
+
+    const statusEl = document.getElementById("postStatus");
+    if (statusEl) statusEl.value = post.status || "draft";
 
     // 5. Activate edit mode UI
     editingPostId = post.id;
@@ -1203,16 +1218,18 @@ async function loadPostIntoEditor(post) {
     // 6. Switch to editor view
     switchView("editor");
 
-    // 7. Trigger SEO/Word count update
+    // 7. Trigger SEO/Word count update after DOM settles
     setTimeout(() => {
-      window.editorInstance.save().then((data) => {
-        const stats = wordCounter.getStats(data);
-        const title = document.getElementById("postTitle")?.value || "";
-        const keyword = document.getElementById("postKeyword")?.value || "";
-        const excerpt = document.getElementById("postExcerpt")?.value || "";
-        const seoScore = seoAnalyzer.analyze(data, title, excerpt, keyword);
-        updateWordCountWithSEO(stats, seoScore);
-      });
+      if (window.editorInstance) {
+        window.editorInstance.save().then((data) => {
+          const stats = wordCounter.getStats(data);
+          const title = document.getElementById("postTitle")?.value || "";
+          const keyword = document.getElementById("postKeyword")?.value || "";
+          const excerpt = document.getElementById("postExcerpt")?.value || "";
+          const seoScore = seoAnalyzer.analyze(data, title, excerpt, keyword);
+          updateWordCountWithSEO(stats, seoScore);
+        });
+      }
     }, 500);
   } catch (error) {
     console.error("Failed to load post into editor:", error);

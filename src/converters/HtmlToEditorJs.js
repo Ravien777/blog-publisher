@@ -1,7 +1,7 @@
 /**
  * HtmlToEditorJs.js
  * Converts WordPress rendered HTML into Editor.js compatible JSON structure.
- * Handles common blocks with graceful fallback and strict sanitization.
+ * Fixed: Preserves spacing around inline elements (links, bold, italics, etc.)
  */
 export class HtmlToEditorJs {
   convert(htmlString) {
@@ -9,26 +9,102 @@ export class HtmlToEditorJs {
       return { time: Date.now(), blocks: [] };
     }
 
-    // Strip dangerous tags/attributes before parsing
+    // 1. Sanitize dangerous tags
     const sanitized = htmlString
       .replace(/<script[\s\S]*?<\/script>/gi, "")
       .replace(/<style[\s\S]*?<\/style>/gi, "")
-      .replace(/\son\w+="[^"]*"/gi, "")
-      .replace(/\son\w+='[^']*'/gi, "");
+      .replace(/\son\w+=["'][^"']*["']/gi, "")
+      .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, "");
 
     const doc = new DOMParser().parseFromString(sanitized, "text/html");
     const blocks = [];
+    let inlineBuffer = [];
 
-    const processElement = (element) => {
-      if (!element) return;
-      const tag = element.tagName.toLowerCase();
+    // Flush buffered inline content as a single paragraph block
+    const flushInlineBuffer = () => {
+      if (inlineBuffer.length === 0) return;
+      const tempDiv = document.createElement("div");
+      inlineBuffer.forEach((node) => tempDiv.appendChild(node));
 
+      // Preserve internal spacing, collapse indentation/newlines to single spaces
+      let html = tempDiv.innerHTML.replace(/\s+/g, " ").trim();
+
+      if (html) {
+        blocks.push({ type: "paragraph", data: { text: html } });
+      }
+      inlineBuffer = [];
+    };
+
+    const extractBlocks = (element) => {
+      const children = Array.from(element.childNodes);
+
+      for (const child of children) {
+        if (child.nodeType === Node.TEXT_NODE) {
+          // Skip pure whitespace/indentation nodes, but keep nodes with visible text + spacing
+          if (child.textContent.trim().length > 0) {
+            inlineBuffer.push(document.createTextNode(child.textContent));
+          }
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          const tag = child.tagName.toLowerCase();
+          const isBlock = [
+            "p",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "ul",
+            "ol",
+            "blockquote",
+            "pre",
+            "figure",
+            "hr",
+            "div",
+            "section",
+            "article",
+            "header",
+            "footer",
+            "main",
+            "nav",
+          ].includes(tag);
+
+          // Flush inline buffer before processing a new block element
+          if (inlineBuffer.length > 0 && isBlock) {
+            flushInlineBuffer();
+          }
+
+          if (isBlock) {
+            if (
+              [
+                "div",
+                "section",
+                "article",
+                "header",
+                "footer",
+                "main",
+                "nav",
+              ].includes(tag)
+            ) {
+              extractBlocks(child);
+            } else {
+              processBlockElement(child, tag);
+            }
+          } else {
+            // Inline element (a, strong, em, span, etc.) -> preserve exactly
+            inlineBuffer.push(child.cloneNode(true));
+          }
+        }
+      }
+      flushInlineBuffer();
+    };
+
+    const processBlockElement = (el, tag) => {
       switch (tag) {
         case "p":
-          blocks.push({
-            type: "paragraph",
-            data: { text: this.extractInlineHtml(element) },
-          });
+          // Direct innerHTML preserves exact inline spacing/formatting
+          const pText = el.innerHTML.replace(/\s+/g, " ").trim();
+          if (pText) blocks.push({ type: "paragraph", data: { text: pText } });
           break;
 
         case "h1":
@@ -40,7 +116,7 @@ export class HtmlToEditorJs {
           blocks.push({
             type: "header",
             data: {
-              text: this.extractInlineHtml(element),
+              text: el.innerHTML.replace(/\s+/g, " ").trim(),
               level: parseInt(tag.charAt(1), 10),
             },
           });
@@ -48,55 +124,51 @@ export class HtmlToEditorJs {
 
         case "ul":
         case "ol":
-          const items = Array.from(element.children)
-            .filter((li) => li.tagName.toLowerCase() === "li")
-            .map((li) => this.extractInlineHtml(li));
-          blocks.push({
-            type: "list",
-            data: { style: tag === "ol" ? "ordered" : "unordered", items },
-          });
+          const items = Array.from(el.querySelectorAll("li")).map((li) =>
+            li.innerHTML.replace(/\s+/g, " ").trim(),
+          );
+          if (items.length > 0) {
+            blocks.push({
+              type: "list",
+              data: { style: tag === "ol" ? "ordered" : "unordered", items },
+            });
+          }
           break;
 
         case "blockquote":
-          const cite = element.querySelector("cite");
-          const textNodes = Array.from(element.childNodes)
-            .filter(
-              (n) =>
-                n.nodeType === Node.TEXT_NODE ||
-                (n.nodeType === Node.ELEMENT_NODE &&
-                  n.tagName.toLowerCase() !== "cite"),
-            )
-            .map((n) =>
-              n.nodeType === Node.TEXT_NODE ? n.textContent : n.innerHTML,
-            )
-            .join("")
-            .trim();
+          const quoteText =
+            el.querySelector("p")?.innerHTML.replace(/\s+/g, " ").trim() ||
+            el.innerHTML
+              .replace(/<cite[^>]*>[\s\S]*?<\/cite>/gi, "")
+              .replace(/\s+/g, " ")
+              .trim();
+          const cite = el.querySelector("cite");
           blocks.push({
             type: "quote",
             data: {
-              text: textNodes,
+              text: quoteText,
               caption: cite ? cite.textContent.trim() : "",
             },
           });
           break;
 
         case "pre":
-          const codeEl = element.querySelector("code");
+          const code = el.querySelector("code");
           blocks.push({
             type: "code",
-            data: { code: codeEl ? codeEl.textContent : element.textContent },
+            data: { code: code ? code.textContent : el.textContent },
           });
           break;
 
         case "figure":
-          const img = element.querySelector("img");
-          if (img) {
-            const figcaption = element.querySelector("figcaption");
+          const img = el.querySelector("img");
+          if (img?.src) {
+            const caption = el.querySelector("figcaption");
             blocks.push({
               type: "image",
               data: {
                 file: { url: img.src, id: null },
-                caption: figcaption ? figcaption.textContent.trim() : "",
+                caption: caption ? caption.textContent.trim() : "",
                 withBorder: false,
                 withBackground: false,
                 stretched: false,
@@ -108,59 +180,20 @@ export class HtmlToEditorJs {
         case "hr":
           blocks.push({ type: "delimiter", data: {} });
           break;
-
-        case "div":
-          if (
-            element.classList.contains("wp-block-embed") ||
-            element.querySelector("iframe")
-          ) {
-            const iframe = element.querySelector("iframe");
-            if (iframe) {
-              blocks.push({
-                type: "embed",
-                data: {
-                  service: "other",
-                  source: iframe.src,
-                  embed: iframe.src,
-                  width: 560,
-                  height: 315,
-                },
-              });
-            }
-          } else {
-            blocks.push({
-              type: "paragraph",
-              data: { text: this.extractInlineHtml(element) },
-            });
-          }
-          break;
-
-        default:
-          // Fallback: treat unknown block elements as paragraphs
-          if (element.textContent.trim()) {
-            blocks.push({
-              type: "paragraph",
-              data: { text: this.extractInlineHtml(element) },
-            });
-          }
       }
     };
 
-    Array.from(doc.body.children).forEach(processElement);
-    return { time: Date.now(), blocks };
-  }
+    // Start recursive extraction
+    extractBlocks(doc.body);
 
-  /**
-   * Extract inner HTML while preserving Editor.js-compatible inline tags
-   * @param {HTMLElement} element
-   * @returns {string}
-   */
-  extractInlineHtml(element) {
-    let html = element.innerHTML;
-    // Remove scripts/styles just in case
-    html = html
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[\s\S]*?<\/style>/gi, "");
-    return html.trim();
+    // Fallback: If no blocks found but text exists
+    if (blocks.length === 0) {
+      const plainText = doc.body.textContent.replace(/\s+/g, " ").trim();
+      if (plainText) {
+        blocks.push({ type: "paragraph", data: { text: plainText } });
+      }
+    }
+
+    return { time: Date.now(), blocks };
   }
 }
