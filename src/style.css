@@ -101,6 +101,29 @@ body {
   margin-left: 36px;
 }
 
+/* Theme Toggle Button */
+button.theme-toggle {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+button.theme-toggle:hover,
+button.theme-toggle:active {
+  background-color: var(--accent-hover);
+}
+
 /* Post Configuration – scrollable */
 .post-config {
   padding: 16px 20px;
@@ -188,28 +211,72 @@ body {
 
 /* Sidebar Action Buttons */
 .sidebar-actions {
-  padding: 16px 20px;
-  border-top: 1px solid var(--border-color);
+  padding: 16px;
+  border-top: 1px solid #3e3e42;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-direction: row; /* Changed to row */
+  flex-wrap: wrap; /* Allow wrapping */
+  gap: 8px; /* Spacing between icons */
+  justify-content: center;
+  flex: 1;
+  max-height: 156px;
 }
 
 .sidebar-actions button {
-  width: 100%;
-  padding: 10px 16px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   border: none;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 500;
+  border-radius: 6px;
+  font-size: 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   transition: all 0.2s;
+  background: #3c3c3c;
+  color: #e0e0e0;
 }
 
+.sidebar-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+/* Button Variants */
+.sidebar-actions .btn-primary {
+  background: #007acc;
+  color: white;
+}
+.sidebar-actions .btn-primary:hover {
+  background: #005a9e;
+}
+
+.sidebar-actions .btn-warning {
+  background: #ffc107;
+  color: #000;
+}
+.sidebar-actions .btn-warning:hover {
+  background: #e0a800;
+}
+
+.sidebar-actions .btn-secondary {
+  background: #3c3c3c;
+  color: #e0e0e0;
+}
+.sidebar-actions .btn-secondary:hover {
+  background: #505050;
+}
+
+.sidebar-actions .btn-danger {
+  background: #5a1e1e;
+  color: #f48771;
+}
+.sidebar-actions .btn-danger:hover {
+  background: #7a2a2a;
+}
+
+/* Button Variants */
 .btn-primary {
   background: var(--accent-color);
   color: white;

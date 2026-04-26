@@ -8,7 +8,6 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
-    <link rel="stylesheet" href="./dist/style.css" />
   </head>
   <body>
     <div class="app-container">
@@ -72,17 +71,37 @@
         </div>
 
         <div class="sidebar-actions">
-          <button class="btn-primary" id="saveBtn">
-            <i class="fas fa-paper-plane"></i>
-            Publish to WordPress
+          <button
+            id="saveBtn"
+            class="icon-btn btn-primary"
+            title="Publish to WordPress"
+          >
+            <i class="fab fa-wordpress"></i>
           </button>
-          <button class="btn-secondary" id="clearBtn">
-            <i class="fas fa-eraser"></i>
-            Clear Editor
-          </button>
-          <button class="btn-danger" id="closeBtn">
+
+          <button
+            id="cancelEditBtn"
+            class="icon-btn btn-warning"
+            title="Cancel Edit"
+            style="display: none"
+          >
             <i class="fas fa-times"></i>
-            Close App
+          </button>
+
+          <button
+            id="clearBtn"
+            class="icon-btn btn-secondary"
+            title="Clear Editor"
+          >
+            <i class="fas fa-broom"></i>
+          </button>
+
+          <button
+            class="icon-btn btn-danger"
+            onclick="window.close()"
+            title="Close App"
+          >
+            <i class="fas fa-power-off"></i>
           </button>
         </div>
       </aside>
@@ -134,20 +153,15 @@
           <div class="library-header">
             <h2>Posts Library</h2>
             <div class="library-controls">
-              <div class="type-toggle">
-                <button class="type-toggle-btn active" data-type="post">
-                  <i class="fas fa-file-lines"></i> Posts
-                </button>
-                <button class="type-toggle-btn" data-type="page">
-                  <i class="fas fa-file"></i> Pages
-                </button>
-              </div>
+              <button class="type-toggle-btn active" data-type="post">
+                Posts
+              </button>
+              <button class="type-toggle-btn" data-type="page">Pages</button>
               <select id="lib-status-filter" class="lib-filter">
                 <option value="any">All Status</option>
                 <option value="publish">Published</option>
                 <option value="draft">Drafts</option>
                 <option value="pending">Pending</option>
-                <option value="private">Private</option>
               </select>
               <input
                 type="text"
@@ -155,8 +169,19 @@
                 class="lib-search"
                 placeholder="Search..."
               />
-              <button id="lib-refresh" class="btn-refresh" title="Refresh">
-                <i class="fas fa-sync"></i>
+              <button
+                id="lib-create-new"
+                class="btn-create-new"
+                title="Create New"
+              >
+                <i class="fas fa-plus"></i> New
+              </button>
+              <button
+                id="lib-refresh"
+                class="btn-refresh"
+                title="Refresh Cache"
+              >
+                <i class="fas fa-sync-alt"></i>
               </button>
             </div>
           </div>
@@ -172,10 +197,5 @@
       </div>
     </div>
     <script src="./dist/renderer.js"></script>
-    <script>
-      document.getElementById("closeBtn").addEventListener("click", () => {
-        if (window.close) window.close();
-      });
-    </script>
   </body>
 </html>

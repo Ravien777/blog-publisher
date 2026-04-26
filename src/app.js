@@ -322,7 +322,7 @@ function switchView(view) {
   const libraryBtn = document.getElementById("view-library-btn");
 
   if (view === "editor") {
-    editorView.style.display = "flex";
+    editorView.style.display = "block";
     libraryView.style.display = "none";
     editorBtn.classList.add("active");
     libraryBtn.classList.remove("active");
@@ -1188,17 +1188,21 @@ async function loadPostIntoEditor(post) {
   }
 
   try {
-    // 1. Clear current editor state
-    window.editorInstance.clear();
-
-    // 2. Convert WP HTML to Editor.js JSON
+    // 1. Convert WP HTML to Editor.js JSON
     const converter = new HtmlToEditorJs();
-    const editorData = converter.convert(post.contentRaw || "");
+    let editorData = converter.convert(post.contentRaw || "");
 
-    // 3. Render blocks in Editor.js
+    // render() automatically replaces existing content.
+    // Calling clear() before render() causes a race condition in Editor.js
+    // where internal block removal promises conflict with new block insertion.
+    if (editorData.blocks.length === 0) {
+      editorData = getDefaultData();
+    }
+
+    // 2. Render blocks in Editor.js (replaces content safely)
     await window.editorInstance.render(editorData);
 
-    // 4. Safely populate sidebar fields (prevents null crashes)
+    // 3. Safely populate sidebar fields (prevents null crashes)
     const titleEl = document.getElementById("postTitle");
     if (titleEl) titleEl.value = post.titleRaw || "";
 
@@ -1211,14 +1215,14 @@ async function loadPostIntoEditor(post) {
     const statusEl = document.getElementById("postStatus");
     if (statusEl) statusEl.value = post.status || "draft";
 
-    // 5. Activate edit mode UI
+    // 4. Activate edit mode UI
     editingPostId = post.id;
     updateEditModeUI(true);
 
-    // 6. Switch to editor view
+    // 5. Switch to editor view
     switchView("editor");
 
-    // 7. Trigger SEO/Word count update after DOM settles
+    // 6. Trigger SEO/Word count update after DOM settles
     setTimeout(() => {
       if (window.editorInstance) {
         window.editorInstance.save().then((data) => {
@@ -1238,27 +1242,50 @@ async function loadPostIntoEditor(post) {
 }
 
 /**
+ * Setup Cancel Edit Button (binds to existing #cancelEditBtn in index.html)
+ */
+function setupCancelEditButton() {
+  const cancelBtn = document.getElementById("cancelEditBtn");
+  if (!cancelBtn) return;
+
+  cancelBtn.addEventListener("click", () => {
+    if (confirm("Cancel editing? Unsaved changes will be lost.")) {
+      editingPostId = null;
+      updateEditModeUI(false);
+
+      // Clear editor & sidebar
+      window.editorInstance?.clear();
+      const titleEl = document.getElementById("postTitle");
+      if (titleEl) titleEl.value = "";
+      const excerptEl = document.getElementById("postExcerpt");
+      if (excerptEl) excerptEl.value = "";
+      const slugEl = document.getElementById("postSlug");
+      if (slugEl) slugEl.value = "";
+
+      localStorage.removeItem("editorjs-content");
+    }
+  });
+}
+
+/**
  * Toggle UI elements based on create vs edit mode
  * @param {boolean} isEditing
  */
 function updateEditModeUI(isEditing) {
   const saveBtn = document.getElementById("saveBtn");
   const cancelBtn = document.getElementById("cancelEditBtn");
+  if (!saveBtn || !cancelBtn) return;
 
   if (isEditing) {
-    saveBtn.innerHTML = " Update Post";
-    saveBtn.style.background = "linear-gradient(to right, #2ecc71, #27ae60)";
-    saveBtn.title = `Updating Post ID: ${editingPostId}`;
-
-    if (cancelBtn) {
-      cancelBtn.style.display = "flex";
-      cancelBtn.disabled = false;
-    }
+    // Edit Mode
+    saveBtn.innerHTML = '<i class="fas fa-check"></i>';
+    saveBtn.title = "Update Post";
+    cancelBtn.style.display = "flex"; // Show icon button
   } else {
-    saveBtn.innerHTML = " Publish to WordPress";
-    saveBtn.style.background = "linear-gradient(to right, #4a6cf7, #6a11cb)";
-    saveBtn.title = "";
-    if (cancelBtn) cancelBtn.style.display = "none";
+    // Create Mode
+    saveBtn.innerHTML = '<i class="fab fa-wordpress"></i>';
+    saveBtn.title = "Publish to WordPress";
+    cancelBtn.style.display = "none"; // Hide icon button
   }
 }
 
@@ -2282,32 +2309,6 @@ function updateWordCountWithSEO(stats, seoScore) {
   }
 }
 
-// Cancel Edit Button
-function injectCancelEditButton() {
-  const sidebarActions = document.querySelector(".sidebar-actions");
-  if (!sidebarActions || document.getElementById("cancelEditBtn")) return;
-
-  const cancelBtn = document.createElement("button");
-  cancelBtn.id = "cancelEditBtn";
-  cancelBtn.className = "btn-secondary";
-  cancelBtn.style.display = "none";
-  cancelBtn.innerHTML = " Cancel Edit";
-
-  cancelBtn.addEventListener("click", () => {
-    if (confirm("Cancel editing? Unsaved changes will be lost.")) {
-      editingPostId = null;
-      window.editorInstance.clear();
-      document.getElementById("postTitle").value = "";
-      document.getElementById("postExcerpt").value = "";
-      document.getElementById("postSlug").value = "";
-      updateEditModeUI(false);
-      localStorage.removeItem("editorjs-content");
-    }
-  });
-
-  sidebarActions.appendChild(cancelBtn);
-}
-
 function setupEventHandlers(editor) {
   // Featured Image Upload Handler - Now just stores the file for later
   const featuredImageInput = document.getElementById("featuredImageUpload");
@@ -2468,16 +2469,19 @@ function setupEventHandlers(editor) {
   const toolbarHandlers = {
     "heading-btn": () =>
       editor.blocks.insert("header", { text: "New Heading", level: 2 }),
-    "image-btn": () => document.createElement("input").click(), // Simplified - actual implementation needs file input
-    "link-btn": () => {
-      const url = prompt("Enter a URL to link:", "https://example.com");
-      if (url) editor.blocks.insert("linkTool", { link: url });
-    },
+
+    // FIXED: Triggers Editor.js native image upload dialog
+    "image-btn": () => editor.blocks.insert("image"),
+
+    // FIXED: Inserts a LinkTool block (resolves URL via configured endpoint)
+    "link-btn": () => editor.blocks.insert("linkTool"),
+
     "list-btn": () =>
       editor.blocks.insert("list", {
         style: "unordered",
         items: ["Item 1", "Item 2"],
       }),
+
     "quote-btn": () =>
       editor.blocks.insert("quote", { text: "Enter quote", caption: "Author" }),
   };
@@ -2561,7 +2565,7 @@ document.addEventListener("DOMContentLoaded", () => {
       addLogoutButton();
     }
   });
-  injectCancelEditButton();
+  setupCancelEditButton();
 });
 
 // TODO: Consider adding a schedule publish feature to allow users to set a future date/time for publishing posts.
