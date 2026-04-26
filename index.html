@@ -22,10 +22,12 @@
           <div class="logo-subtitle">Editor for HDS</div>
         </div>
 
+        <!-- placeholder for the site switcher (JS can be adjusted later) -->
+        <div id="site-switcher-anchor"></div>
+
         <div class="post-config" id="sidebar-post-config">
           <div class="config-section">
             <h3>Post Details</h3>
-
             <div class="form-group">
               <label for="postTitle">Title</label>
               <input
@@ -34,7 +36,6 @@
                 placeholder="Enter post title..."
               />
             </div>
-
             <div class="form-group">
               <label for="postKeyword">Keyword</label>
               <input
@@ -43,7 +44,6 @@
                 placeholder="Enter post keyword..."
               />
             </div>
-
             <div class="form-group">
               <label for="postExcerpt">Excerpt (Meta)</label>
               <textarea
@@ -55,7 +55,6 @@
 
           <div class="config-section">
             <h3>Publishing</h3>
-
             <div class="form-group">
               <label for="postStatus">Status</label>
               <select id="postStatus">
@@ -65,7 +64,6 @@
                 <option value="private">Private</option>
               </select>
             </div>
-
             <div class="form-group">
               <label for="featuredImageUpload">Featured Image</label>
               <input type="file" id="featuredImageUpload" accept="image/*" />
@@ -89,53 +87,50 @@
         </div>
       </aside>
 
-      <!-- Toolbar -->
-      <div class="toolbar">
-        <button
-          id="view-editor-btn"
-          class="view-toggle-btn active"
-          title="Editor Mode"
-        >
-          <i class="fas fa-pen-to-square"></i> Editor
-        </button>
-        <button
-          id="view-library-btn"
-          class="view-toggle-btn"
-          title="Library Mode"
-        >
-          <i class="fas fa-folder-open"></i> Library
-        </button>
-        <div class="toolbar-divider"></div>
-        <!-- Existing toolbar buttons... -->
-        <button id="heading-btn" title="Add Heading">
-          <i class="fas fa-heading"></i>
-        </button>
-        <button id="image-btn" title="Add Image">
-          <i class="fas fa-image"></i>
-        </button>
-        <button id="link-btn" title="Add Link">
-          <i class="fas fa-link"></i>
-        </button>
-        <button id="list-btn" title="Add List">
-          <i class="fas fa-list-ul"></i>
-        </button>
-        <button id="quote-btn" title="Add Quote">
-          <i class="fas fa-quote-right"></i>
-        </button>
-      </div>
-
-      <!-- Main Content Area -->
+      <!-- Main Content (toolbar + views) -->
       <main class="main-content">
+        <!-- Toolbar moved inside main-content -->
+        <div class="toolbar">
+          <button
+            id="view-editor-btn"
+            class="view-toggle-btn active"
+            title="Editor Mode"
+          >
+            <i class="fas fa-pen-to-square"></i> Editor
+          </button>
+          <button
+            id="view-library-btn"
+            class="view-toggle-btn"
+            title="Library Mode"
+          >
+            <i class="fas fa-folder-open"></i> Library
+          </button>
+          <div class="toolbar-divider"></div>
+          <button id="heading-btn" title="Add Heading">
+            <i class="fas fa-heading"></i>
+          </button>
+          <button id="image-btn" title="Add Image">
+            <i class="fas fa-image"></i>
+          </button>
+          <button id="link-btn" title="Add Link">
+            <i class="fas fa-link"></i>
+          </button>
+          <button id="list-btn" title="Add List">
+            <i class="fas fa-list-ul"></i>
+          </button>
+          <button id="quote-btn" title="Add Quote">
+            <i class="fas fa-quote-right"></i>
+          </button>
+        </div>
+
         <div id="editor-area" class="view-container editor-area">
           <div id="editorjs"></div>
         </div>
-
         <div
           id="library-view"
           class="view-container library-view"
           style="display: none"
         >
-          <!-- Library-header -->
           <div class="library-header">
             <h2>Posts Library</h2>
             <div class="library-controls">
@@ -147,7 +142,6 @@
                   <i class="fas fa-file"></i> Pages
                 </button>
               </div>
-
               <select id="lib-status-filter" class="lib-filter">
                 <option value="any">All Status</option>
                 <option value="publish">Published</option>
@@ -155,7 +149,6 @@
                 <option value="pending">Pending</option>
                 <option value="private">Private</option>
               </select>
-
               <input
                 type="text"
                 id="lib-search"
@@ -171,11 +164,16 @@
           <div class="pagination-wrapper"></div>
         </div>
       </main>
+
+      <!-- Status Bar (grid row 2, column 2) -->
+      <div class="status-bar">
+        <span id="status-text">✅ Online</span>
+        <span id="network-status"></span>
+      </div>
     </div>
     <script src="./dist/renderer.js"></script>
     <script>
       document.getElementById("closeBtn").addEventListener("click", () => {
-        // Close the app (works in Electron)
         if (window.close) window.close();
       });
     </script>

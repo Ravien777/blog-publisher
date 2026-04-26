@@ -27,8 +27,8 @@ export class PostManager {
   }
 
   /**
-   * Fetch posts/pages with filtering & pagination
-   * @param {Object} options - { status, per_page, page, order, orderby, search, type }
+   * Fetch posts with caching support
+   * @param {Object} options - { status, per_page, page, order, orderby, search, type, useCache }
    * @returns {Promise<{posts: Array, pagination: Object}>}
    */
   async fetchPosts(options = {}) {
@@ -40,12 +40,28 @@ export class PostManager {
       orderby = "date",
       search = "",
       type = "post",
+      useCache = true, // NEW: enable caching by default
+      fields = "minimal", // NEW: 'minimal' | 'full'
     } = options;
 
     this.validateFetchOptions({ status, per_page, page, order, orderby, type });
 
+    // Cache key generation
+    const cacheKey = `posts_list_${type}`;
+    const cacheParams = { status, per_page, page, order, orderby, search };
+
+    // Try cache first
+    if (useCache) {
+      const cached = cache.get(cacheKey, cacheParams);
+      if (cached) {
+        console.log(`[Cache HIT] ${cacheKey}`, cached.pagination);
+        return cached;
+      }
+    }
+
+    // Build API params - request minimal fields for list view
     const params = new URLSearchParams({
-      context: "edit",
+      context: fields === "full" ? "edit" : "view", // 'view' returns lighter payload
       status,
       per_page: String(per_page),
       page: String(page),
@@ -53,12 +69,19 @@ export class PostManager {
       orderby,
       type,
       ...(search.trim() ? { search: search.trim() } : {}),
+      // Request only needed fields for list rendering
+      _fields:
+        fields === "minimal"
+          ? "id,title,date,modified,status,link,slug,excerpt,featured_media"
+          : undefined,
     });
 
     const url = `${this.apiUrl}/posts?${params.toString()}`;
     const response = await this.safeFetch(url, {
       method: "GET",
       headers: this.defaultHeaders,
+      // Add cache-busting header if needed
+      cache: useCache ? "force-cache" : "no-store",
     });
 
     const pagination = {
@@ -69,11 +92,18 @@ export class PostManager {
     };
 
     const rawData = await response.json();
-    return { posts: this.sanitizePostData(rawData), pagination };
-  }
+    const result = { posts: this.sanitizePostData(rawData), pagination };
 
+    // Cache successful responses (list view only, not full edit data)
+    if (useCache && fields === "minimal") {
+      cache.set(cacheKey, result, 2 * 60 * 1000); // 2 min cache for lists
+      console.log(`[Cache SET] ${cacheKey}`);
+    }
+
+    return result;
+  }
   /**
-   * Fetch a single post by ID for editing
+   * Fetch single post with cache bypass (always fresh for editing)
    * @param {number} postId
    * @returns {Promise<Object>}
    */
@@ -82,13 +112,30 @@ export class PostManager {
       throw new TypeError("Valid post ID is required");
     }
 
-    const url = `${this.apiUrl}/posts/${postId}?context=edit`;
+    // Never cache single post fetches - always get freshest edit data
+    const url = `${this.apiUrl}/posts/${postId}?context=edit&_fields=id,title,slug,content,excerpt,status,modified,author,featured_media,meta,yoast_head_json`;
     const response = await this.safeFetch(url, {
       method: "GET",
       headers: this.defaultHeaders,
+      cache: "no-store",
     });
     const rawData = await response.json();
     return this.sanitizePostData([rawData])[0];
+  }
+
+  /**
+   * Invalidate post-related cache after mutation
+   * @param {number} postId
+   * @param {string} type - 'post' | 'page'
+   */
+  invalidatePostCache(postId, type = "post") {
+    // Invalidate list caches for this post type
+    cache.invalidate(`posts_list_${type}`);
+
+    // Invalidate specific post cache if it exists
+    cache.delete(`post_${postId}`);
+
+    console.log(`[Cache INVALIDATED] post #${postId} (${type})`);
   }
 
   /**
