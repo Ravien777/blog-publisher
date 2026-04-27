@@ -291,6 +291,20 @@ function createPostManager() {
 }
 
 /**
+ * Clear all sidebar form fields
+ */
+function clearSidebarFields() {
+  const fields = ["postTitle", "postKeyword", "postExcerpt", "postSlug"];
+  fields.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+
+  const statusEl = document.getElementById("postStatus");
+  if (statusEl) statusEl.value = "draft";
+}
+
+/**
  * Creates a clean editor state for a new post or page
  * @param {string} type - 'post' | 'page'
  */
@@ -309,13 +323,7 @@ function createNewPost(type = "post") {
   }, 100);
 
   // Reset sidebar fields
-  ["postTitle", "postKeyword", "postExcerpt", "postSlug"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.value = "";
-  });
-
-  const statusEl = document.getElementById("postStatus");
-  if (statusEl) statusEl.value = "draft";
+  clearSidebarFields();
 
   // Reset state & clear drafts
   editingPostId = null;
@@ -1035,11 +1043,12 @@ async function loadPostIntoEditor(post) {
     // 4. Load SEO Keyword (Supports Yoast & Rank Math)
     const keywordInput = document.getElementById("postKeyword");
     if (keywordInput && post.meta) {
-      keywordInput.value =
+      keywordInput.value = (
         post.meta._yoast_wpseo_focuskw ||
         post.meta.rank_math_focus_keyword ||
         post.yoast_head_json?.focus_keyword ||
-        "";
+        ""
+      ).trim();
     }
 
     // 5. Activate edit mode UI & switch view
@@ -1080,12 +1089,7 @@ function setupCancelEditButton() {
 
       // Clear editor & sidebar
       window.editorInstance?.clear();
-      const titleEl = document.getElementById("postTitle");
-      if (titleEl) titleEl.value = "";
-      const excerptEl = document.getElementById("postExcerpt");
-      if (excerptEl) excerptEl.value = "";
-      const slugEl = document.getElementById("postSlug");
-      if (slugEl) slugEl.value = "";
+      clearSidebarFields();
 
       localStorage.removeItem("editorjs-content");
     }
@@ -1805,12 +1809,15 @@ function setupEventHandlers(editor) {
 
         // Add Yoast/SEO meta if provided
         if (keyword || excerpt) {
-          payload.meta = {
-            _yoast_wpseo_focuskw: keyword || "", // Yoast SEO focus keyword
-            rank_math_focus_keyword: keyword || "", // Rank Math focus keyword
-            _yoast_wpseo_metadesc: excerpt || "",
-            _yoast_wpseo_title: title || "",
-          };
+          payload.meta = {};
+          if (keyword) {
+            payload.meta._yoast_wpseo_focuskw = keyword;
+            payload.meta.rank_math_focus_keyword = keyword;
+          }
+          if (excerpt) {
+            payload.meta._yoast_wpseo_metadesc = excerpt;
+            payload.meta._yoast_wpseo_title = title;
+          }
         }
 
         // 5. API Call (WP REST uses POST for both create & update)
@@ -1883,6 +1890,10 @@ function setupEventHandlers(editor) {
       )
     ) {
       editor.clear();
+
+      // Clear sidebar fields
+      clearSidebarFields();
+
       localStorage.removeItem("editorjs-content");
 
       // Also clear featured image
@@ -2007,13 +2018,10 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // TODO: Consider adding a schedule publish feature to allow users to set a future date/time for publishing posts.
-// TODO: Implement better error handling and user feedback for network issues during API calls.
 // TODO: Add support for custom taxonomies (categories, tags) when creating posts.
-// TODO: Consider adding integration with popular SEO plugins to help users optimize their content for search engines.
 // TODO: Optimize image uploads by resizing/compressing images before uploading to WordPress.
 // TODO: Consider adding keyboard shortcuts for common actions (save, publish, insert block types).
 // TODO: Consider adding support for custom CSS classes on blocks for advanced styling options.
-// TODO: Consider adding a way to view and manage previously published posts directly from the editor interface.
 // TODO: Consider adding a feature to insert galleries of images.
 // TODO: Consider adding video upload support directly to WordPress media library.
 // TODO: Consider adding drag-and-drop support for reordering blocks within the editor.

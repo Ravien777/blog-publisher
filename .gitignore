@@ -2,7 +2,6 @@
 release/
 dist/
 build/
-src/appbackup.js
 *.AppImage
 *.dmg
 *.exe
