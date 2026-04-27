@@ -975,6 +975,7 @@ function saveToLocalStorage(data) {
   }
 }
 
+// Default content for new posts/pages
 function getDefaultData() {
   return {
     time: new Date().getTime(),
