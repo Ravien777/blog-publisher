@@ -19,9 +19,17 @@ import { PostManager } from "./managers/PostManager.js";
 import { PageManager } from "./managers/PageManager.js";
 import { LibraryView } from "./components/LibraryView.js";
 import { CacheManager, cache } from "./utils/CacheManagers.js";
+import { AuthManager } from "./services/AuthManager.js";
+import { ImageUploader } from "./services/ImageUploader.js";
+
+// Initialize service singletons
+const authManager = new AuthManager();
+const imageUploader = new ImageUploader(authManager);
 
 // Track if we're editing an existing post
 let editingPostId = null;
+let currentEditingType = "post"; // NEW: Tracks if we are editing a post or page
+let detectedSeoPlugin = null; // 'yoast', 'rank-math', or null
 
 // Security utility functions
 const securityUtils = {
@@ -170,108 +178,105 @@ if (process.env.NODE_ENV === "development") {
   console.log("🔧 Blog Publisher cache utils available: window.bpCache");
 }
 
-// ====================================
-// MULTI-SITE MANAGEMENT
-// ====================================
-
-const siteManager = {
-  /**
-   * Get all saved sites
-   */
-  getSites: () => {
+// SEO Plugin Utilities - handles Yoast & Rank Math keyword mapping
+const seoUtils = {
+  // Detect active SEO plugin by inspecting a sample post's meta fields
+  detectPlugin: async (apiUrl, token) => {
     try {
-      const sites = localStorage.getItem("wp_sites");
-      return sites ? JSON.parse(sites) : [];
-    } catch (e) {
-      console.error("Failed to load sites:", e);
-      return [];
+      const response = await fetch(`${apiUrl}/posts?per_page=1&context=edit`, {
+        headers: {
+          Authorization: `Basic ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response.ok) return null;
+      const posts = await response.json();
+      if (!posts.length) return null;
+      const meta = posts[0].meta || {};
+      if (meta._yoast_wpseo_focuskw !== undefined) return "yoast";
+      if (meta.rank_math_focus_keyword !== undefined) return "rank-math";
+      return null;
+    } catch {
+      return null;
     }
   },
 
-  /**
-   * Save a site configuration
-   */
-  saveSite: (site) => {
-    const sites = siteManager.getSites();
-    const existingIndex = sites.findIndex((s) => s.id === site.id);
+  // Extract keyword from post object based on detected plugin
+  getKeyword: (post, plugin) => {
+    if (!post?.meta) return "";
+    if (plugin === "yoast") {
+      return (
+        post.meta._yoast_wpseo_focuskw ||
+        post.yoast_head_json?.focus_keyword ||
+        ""
+      );
+    }
+    if (plugin === "rank-math") {
+      return post.meta.rank_math_focus_keyword || "";
+    }
+    // Fallback: check both
+    return (
+      post.meta._yoast_wpseo_focuskw ||
+      post.meta.rank_math_focus_keyword ||
+      post.yoast_head_json?.focus_keyword ||
+      ""
+    );
+  },
 
-    if (existingIndex >= 0) {
-      sites[existingIndex] = site;
+  // Build meta payload for saving keyword to correct plugin field
+  buildMetaPayload: (keyword, plugin) => {
+    const meta = {};
+    if (plugin === "yoast") {
+      meta._yoast_wpseo_focuskw = keyword || "";
+    } else if (plugin === "rank-math") {
+      meta.rank_math_focus_keyword = keyword || "";
     } else {
-      sites.push(site);
+      // Send to both for maximum compatibility
+      meta._yoast_wpseo_focuskw = keyword || "";
+      meta.rank_math_focus_keyword = keyword || "";
     }
-
-    localStorage.setItem("wp_sites", JSON.stringify(sites));
-  },
-
-  /**
-   * Remove a site
-   */
-  removeSite: (siteId) => {
-    const sites = siteManager.getSites();
-    const filtered = sites.filter((s) => s.id !== siteId);
-    localStorage.setItem("wp_sites", JSON.stringify(filtered));
-  },
-
-  /**
-   * Get current active site
-   */
-  getActiveSite: () => {
-    const siteId = sessionStorage.getItem("active_site_id");
-    if (!siteId) return null;
-
-    const sites = siteManager.getSites();
-    return sites.find((s) => s.id === siteId) || null;
-  },
-
-  /**
-   * Set active site
-   */
-  setActiveSite: (siteId) => {
-    sessionStorage.setItem("active_site_id", siteId);
-  },
-
-  /**
-   * Create a new site object
-   */
-  createSite: (name, url, username, token) => {
-    return {
-      id: `site-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: name,
-      url: url,
-      username: username,
-      token: token,
-      createdAt: new Date().toISOString(),
-    };
+    return meta;
   },
 };
 
-// Configuration - should be loaded from environment in production
-const getActiveConfig = () => {
-  const activeSite = siteManager.getActiveSite();
+// Generate URL-friendly slug from title
+function generateSlug(title) {
+  if (!title) return "";
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "") // Remove special chars
+    .replace(/[\s_-]+/g, "-") // Replace spaces/underscores with hyphens
+    .replace(/^-+|-+$/g, ""); // Trim leading/trailing hyphens
+}
 
-  if (activeSite) {
-    return {
-      WORDPRESS_API: `${activeSite.url}/wp-json/wp/v2`,
-      WORDPRESS_SITE_URL: activeSite.url,
-      MAX_IMAGE_SIZE: 5242880,
-      ALLOWED_IMAGE_TYPES: [
-        "image/jpeg",
-        "image/png",
-        "image/gif",
-        "image/webp",
-      ],
-    };
+// Update the read-only content type indicator in the sidebar
+function updateContentTypeIndicator(type) {
+  const el = document.getElementById("contentType");
+  if (el) {
+    el.value = type === "page" ? "Page" : "Post";
+    el.title = `Editing a WordPress ${type}`;
+    console.log(`Content type set to: ${type}`);
   }
+}
 
-  // Fallback to default
-  return {
-    WORDPRESS_API: "https://unabo.be/wp-json/wp/v2",
-    WORDPRESS_SITE_URL: "https://unabo.be",
-    MAX_IMAGE_SIZE: 5242880,
-    ALLOWED_IMAGE_TYPES: ["image/jpeg", "image/png", "image/gif", "image/webp"],
-  };
+// ====================================
+// MULTI-SITE MANAGEMENT (delegated to AuthManager)
+// ====================================
+
+// Site management delegated to AuthManager
+const siteManager = {
+  getSites: () => authManager.getSites(),
+  saveSite: (site) => authManager.saveSite(site),
+  removeSite: (siteId) => authManager.removeSite(siteId),
+  getActiveSite: () => authManager.getActiveSite(),
+  setActiveSite: (siteId) => authManager.setActiveSite(siteId),
+  createSite: (name, url, username, token) =>
+    authManager.createSite(name, url, username, token),
 };
+
+// Configuration - delegated to AuthManager
+const getActiveConfig = () => authManager.getActiveConfig();
 
 // PostManager factory - reuses existing config & auth systems
 function createPostManager() {
@@ -285,32 +290,66 @@ function createPostManager() {
   return new PostManager(config.WORDPRESS_API, token);
 }
 
+/**
+ * Creates a clean editor state for a new post or page
+ * @param {string} type - 'post' | 'page'
+ */
+function createNewPost(type = "post") {
+  currentEditingType = type; // Track type for API routing
+  updateContentTypeIndicator(type); // Update sidebar indicator
+
+  if (!window.editorInstance) return;
+
+  // Clear editor safely
+  window.editorInstance.clear();
+  setTimeout(() => {
+    if (window.editorInstance) {
+      window.editorInstance.blocks.insert("paragraph", { text: "" });
+    }
+  }, 100);
+
+  // Reset sidebar fields
+  ["postTitle", "postKeyword", "postExcerpt", "postSlug"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+
+  const statusEl = document.getElementById("postStatus");
+  if (statusEl) statusEl.value = "draft";
+
+  // Reset state & clear drafts
+  editingPostId = null;
+  localStorage.removeItem("editorjs-content");
+  updateEditModeUI(false);
+
+  // Switch to editor view
+  switchView("editor");
+}
+
 let libraryViewInstance = null;
 
 function initLibraryView() {
   const container = document.getElementById("library-view");
   if (!container) return;
 
-  // Ensure single instance per session
   if (!window.libraryInstance) {
     const config = getActiveConfig();
     const token = tokenManagerMultiSite.getToken();
-    if (!config.WORDPRESS_API || !token) return; // Safety check
+    if (!config.WORDPRESS_API || !token) return;
 
-    // Instantiate both managers with shared config/auth
     const postManager = new PostManager(config.WORDPRESS_API, token);
     const pageManager = new PageManager(config.WORDPRESS_API, token);
 
     window.libraryInstance = new LibraryView(
       container,
-      { post: postManager, page: pageManager }, // Manager map
+      { post: postManager, page: pageManager }, // Pass manager map
       (post) => {
         switchView("editor");
         loadPostIntoEditor(post);
       },
+      (type) => createNewPost(type), // Pass create callback
     );
   } else {
-    // Refresh data when switching back to library
     window.libraryInstance.load();
   }
 }
@@ -335,87 +374,18 @@ function switchView(view) {
   }
 }
 
-// Enhanced token manager for Application Passwords
+// Token management delegated to AuthManager
 const tokenManagerMultiSite = {
-  getToken: () => {
-    const activeSite = siteManager.getActiveSite();
-    return activeSite ? activeSite.token : "";
-  },
-
-  setToken: (token) => {
-    const activeSite = siteManager.getActiveSite();
-    if (activeSite) {
-      activeSite.token = token;
-      siteManager.saveSite(activeSite);
-    }
-  },
-
-  clearToken: () => {
-    const activeSite = siteManager.getActiveSite();
-    if (activeSite) {
-      activeSite.token = "";
-      siteManager.saveSite(activeSite);
-    }
-  },
-
-  validateToken: async () => {
-    const token = tokenManagerMultiSite.getToken();
-    if (!token) return false;
-
-    const config = getActiveConfig();
-    try {
-      const response = await fetch(
-        `${config.WORDPRESS_SITE_URL}/wp-json/wp/v2/users/me`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Basic ${token}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
-      return response.ok;
-    } catch {
-      return false;
-    }
-  },
+  getToken: () => authManager.getToken(),
+  setToken: (token) => authManager.setToken(token),
+  clearToken: () => authManager.clearToken(),
+  validateToken: async () => authManager.validateToken(),
 };
 
-// Image processing utilities
+// Image processing utilities (delegated to ImageUploader)
 const imageUtils = {
-  base64ToBlob: (base64Data) => {
-    const parts = base64Data.split(";base64,");
-    const contentType = parts[0].split(":")[1];
-    const raw = window.atob(parts[1]);
-    const rawLength = raw.length;
-    const uInt8Array = new Uint8Array(rawLength);
-
-    for (let i = 0; i < rawLength; ++i) {
-      uInt8Array[i] = raw.charCodeAt(i);
-    }
-
-    return new Blob([uInt8Array], { type: contentType });
-  },
-
-  validateImageFile: (file) => {
-    const CONFIG = getActiveConfig();
-    if (!CONFIG.ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      throw new Error(
-        `Invalid image type. Allowed: ${CONFIG.ALLOWED_IMAGE_TYPES.join(", ")}`,
-      );
-    }
-
-    if (file.size > CONFIG.MAX_IMAGE_SIZE) {
-      alert("The image is too large. Maximum size is 5MB.");
-      throw new Error(
-        `Image too large. Maximum size: ${
-          CONFIG.MAX_IMAGE_SIZE / 1024 / 1024
-        }MB`,
-      );
-    }
-
-    return true;
-  },
+  base64ToBlob: (base64Data) => imageUploader.base64ToBlob(base64Data),
+  validateImageFile: (file) => imageUploader.validateImageFile(file),
 };
 
 // HTML conversion with proper inline formatting support
@@ -527,172 +497,91 @@ async function convertEditorJsToHTML(jsonData) {
   return html;
 }
 
-// Upload pending images to WordPress
+// Upload pending images to WordPress (delegated to ImageUploader)
 async function uploadPendingImages(editorData) {
-  if (!window.pendingUploads || window.pendingUploads.size === 0) {
-    return editorData;
-  }
-
-  const token = tokenManagerMultiSite.getToken(); // UPDATED
-  if (!token) {
-    throw new Error("Authentication required");
-  }
-
-  const config = getActiveConfig(); // UPDATED
-  const updatedData = JSON.parse(JSON.stringify(editorData));
-
-  for (let i = 0; i < updatedData.blocks.length; i++) {
-    const block = updatedData.blocks[i];
-
-    if (block.type === "image" && block.data?.file?.pending) {
-      const fileId = block.data.file.id;
-      const file = window.pendingUploads.get(fileId);
-
-      if (file) {
-        try {
-          console.log(
-            `Uploading image to ${config.WORDPRESS_SITE_URL}: ${file.name}`,
-          );
-
-          const formData = new FormData();
-          formData.append("file", file);
-
-          const uploadResponse = await fetch(`${config.WORDPRESS_API}/media`, {
-            method: "POST",
-            headers: {
-              Authorization: `Basic ${token}`,
-            },
-            body: formData,
-          });
-
-          if (!uploadResponse.ok) {
-            const errorText = await uploadResponse.text();
-            throw new Error(
-              `Upload failed: ${uploadResponse.status} - ${errorText}`,
-            );
-          }
-
-          const mediaData = await uploadResponse.json();
-
-          block.data.file = {
-            url: mediaData.source_url,
-            id: mediaData.id,
-            pending: false,
-            sizes: mediaData.media_details?.sizes || {},
-          };
-
-          window.pendingUploads.delete(fileId);
-
-          console.log(`Image uploaded successfully: ${mediaData.source_url}`);
-        } catch (error) {
-          console.error(`Failed to upload image ${fileId}:`, error);
-          throw new Error(`Failed to upload image: ${error.message}`);
-        }
-      }
-    }
-  }
-
-  return updatedData;
+  return imageUploader.uploadPendingImages(editorData);
 }
 
-// Function to handle featured image upload
+// Function to handle featured image upload (delegated to ImageUploader)
 async function uploadFeaturedImage(file) {
-  try {
-    const token = tokenManagerMultiSite.getToken();
-    if (!token) {
-      throw new Error("Authentication required. Please login first.");
-    }
-
-    const config = getActiveConfig();
-
-    // Validate the image file
-    imageUtils.validateImageFile(file);
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("title", file.name);
-    formData.append("alt_text", file.name);
-
-    const response = await fetch(`${config.WORDPRESS_API}/media`, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${token}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `Featured image upload failed: ${response.status} - ${errorText}`,
-      );
-    }
-
-    const mediaData = await response.json();
-
-    return {
-      success: true,
-      id: mediaData.id,
-      url: mediaData.source_url,
-      data: mediaData,
-    };
-  } catch (error) {
-    console.error("Featured image upload error:", error);
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
+  return imageUploader.uploadFeaturedImage(file);
 }
 
-// Post to WordPress
-async function postToWordPress(htmlContent, postData, featuredImageId = null) {
+/**
+ * Create or Update a post in WordPress
+ * SEO meta is handled dynamically based on detected plugin (Yoast or Rank Math)
+ * @param {Object} htmlContent - Sanitized HTML
+ * @param {Object} postData - { title, excerpt, status, slug, yoast }
+ * @param {number|null} featuredImageId
+ * @param {number|null} postId - If provided, updates existing post
+ */
+async function postToWordPress(
+  htmlContent,
+  postData,
+  featuredImageId = null,
+  postId = null,
+  type = "post",
+) {
   try {
     const token = tokenManagerMultiSite.getToken();
     if (!token) throw new Error("Authentication required.");
 
     const config = getActiveConfig();
-    const canPublish = await checkUserCapability("publish_posts");
 
-    // Build basic payload
+    // Validate status (removed trailing spaces bug)
+    const validStatuses = ["publish", "draft", "pending", "private", "future"];
+    const targetStatus = validStatuses.includes(postData.status)
+      ? postData.status
+      : "draft";
+
+    // Auto-generate slug if not provided (CRUD: Create default)
+    const slug =
+      postData.slug ||
+      (postData.title ? generateSlug(postData.title) : "untitled");
+
+    // Build base payload
     const payload = {
       title: securityUtils.escapeHtml(postData.title || "Untitled"),
-      slug: (postData.slug || postData.title || "untitled")
+      slug: slug
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, ""),
       content: htmlContent,
-      status: ["publish", "draft", "pending"].includes(postData.status)
-        ? postData.status
-        : "draft",
+      status: targetStatus,
       excerpt: securityUtils.escapeHtml(postData.excerpt || ""),
       featured_media: featuredImageId || 0,
     };
 
-    // Add Yoast SEO meta fields (standard WP REST way)
+    // Merge SEO meta fields (Yoast + Rank Math compatibility)
+    if (postData.seoMeta) {
+      payload.meta = { ...(payload.meta || {}), ...postData.seoMeta };
+    }
+
+    // Add Yoast-specific fields if provided (backward compatibility)
     if (postData.yoast) {
-      // Note: Requires Yoast SEO plugin to be active on the target site.
-      // If meta fields are private, this will be ignored by WP API.
       payload.meta = {
+        ...(payload.meta || {}),
         _yoast_wpseo_focuskw: postData.yoast.focusKeyword || "",
         _yoast_wpseo_metadesc:
           postData.yoast.metaDescription || postData.excerpt || "",
         _yoast_wpseo_title: postData.yoast.title || postData.title || "",
       };
-
-      // Optional: Attempt yoast_head_json if supported by plugin version
-      try {
+      // Optional yoast_head_json for newer plugin versions
+      if (postData.yoast.title || postData.yoast.metaDescription) {
         payload.yoast_head_json = {
           title: postData.yoast.title,
           description: postData.yoast.metaDescription,
         };
-      } catch (e) {
-        // Ignore if structure fails
       }
     }
 
-    const response = await fetch(`${config.WORDPRESS_API}/posts`, {
-      method: "POST",
+    // Determine correct endpoint based on content type
+    const endpoint = postId
+      ? `${config.WORDPRESS_API}/${type === "page" ? "pages" : "posts"}/${postId}`
+      : `${config.WORDPRESS_API}/${type === "page" ? "pages" : "posts"}`;
+
+    const response = await fetch(endpoint, {
+      method: "POST", // WP REST accepts POST for both create & update
       headers: {
         "Content-Type": "application/json",
         Authorization: `Basic ${token}`,
@@ -712,92 +601,14 @@ async function postToWordPress(htmlContent, postData, featuredImageId = null) {
   }
 }
 
-// Authentication with WordPress
+// Authentication with WordPress (delegated to AuthManager)
 async function authenticateWithWordPress(username, applicationPassword) {
-  try {
-    const token = btoa(`${username}:${applicationPassword}`);
-
-    const CONFIG = getActiveConfig();
-
-    const response = await fetch(
-      `${CONFIG.WORDPRESS_SITE_URL}/wp-json/wp/v2/users/me`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Basic ${token}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error("Invalid username or application password");
-      }
-      throw new Error(
-        `Authentication failed: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const userData = await response.json();
-
-    tokenManagerMultiSite.setToken(token);
-    return {
-      success: true,
-      user: {
-        id: userData.id,
-        name: userData.name,
-        username: userData.username,
-        capabilities: userData.capabilities || {},
-      },
-    };
-  } catch (error) {
-    console.error("Authentication error:", error);
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
+  return authManager.authenticate(username, applicationPassword);
 }
 
-// Check user capabilities
+// Check user capabilities (delegated to AuthManager)
 async function checkUserCapability(capability) {
-  try {
-    const token = tokenManagerMultiSite.getToken();
-    if (!token) return false;
-    const config = getActiveConfig();
-
-    const response = await fetch(
-      `${config.WORDPRESS_SITE_URL}/wp-json/wp/v2/users/me?context=edit`,
-      {
-        headers: {
-          Authorization: `Basic ${token}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!response.ok) return false;
-
-    const userData = await response.json();
-    const roles = userData.roles || [];
-
-    // Role-based checks
-    if (capability === "publish_posts") {
-      return ["administrator", "editor", "author"].some((r) =>
-        roles.includes(r),
-      );
-    }
-    if (capability === "edit_posts") {
-      return ["administrator", "editor", "author", "contributor"].some((r) =>
-        roles.includes(r),
-      );
-    }
-    return false;
-  } catch (error) {
-    console.error("Error checking capability:", error);
-    return false;
-  }
+  return authManager.checkCapability(capability);
 }
 
 function getAdvancedYoastData() {
@@ -903,6 +714,14 @@ async function initializeEditor() {
     }
 
     if (siteManager.getActiveSite()) {
+      // Detect SEO plugin once and cache result
+      const config = getActiveConfig();
+      const token = tokenManagerMultiSite.getToken();
+      seoUtils.detectPlugin(config.WORDPRESS_API, token).then((plugin) => {
+        detectedSeoPlugin = plugin;
+        console.log(`✅ SEO plugin detected: ${plugin || "none"}`);
+      });
+
       // Non-blocking cache pre-fetch
       setTimeout(async () => {
         try {
@@ -1188,38 +1007,43 @@ async function loadPostIntoEditor(post) {
   }
 
   try {
-    // 1. Convert WP HTML to Editor.js JSON
+    // 1. Set content type from loaded post
+    currentEditingType = post.type === "page" ? "page" : "post";
+    updateContentTypeIndicator(currentEditingType);
+
+    // 2. Clear editor safely (render() replaces content, clear() causes race condition)
     const converter = new HtmlToEditorJs();
     let editorData = converter.convert(post.contentRaw || "");
-
-    // render() automatically replaces existing content.
-    // Calling clear() before render() causes a race condition in Editor.js
-    // where internal block removal promises conflict with new block insertion.
     if (editorData.blocks.length === 0) {
       editorData = getDefaultData();
     }
-
-    // 2. Render blocks in Editor.js (replaces content safely)
     await window.editorInstance.render(editorData);
 
-    // 3. Safely populate sidebar fields (prevents null crashes)
-    const titleEl = document.getElementById("postTitle");
-    if (titleEl) titleEl.value = post.titleRaw || "";
+    // 3. Populate sidebar fields with null checks
+    const fields = [
+      { id: "postTitle", value: post.titleRaw || "" },
+      { id: "postExcerpt", value: post.excerptRaw || "" },
+      { id: "postSlug", value: post.slug || "" },
+      { id: "postStatus", value: post.status || "draft" },
+    ];
+    fields.forEach(({ id, value }) => {
+      const el = document.getElementById(id);
+      if (el) el.value = value;
+    });
 
-    const excerptEl = document.getElementById("postExcerpt");
-    if (excerptEl) excerptEl.value = post.excerptRaw || "";
+    // 4. Load SEO Keyword (Supports Yoast & Rank Math)
+    const keywordInput = document.getElementById("postKeyword");
+    if (keywordInput && post.meta) {
+      keywordInput.value =
+        post.meta._yoast_wpseo_focuskw ||
+        post.meta.rank_math_focus_keyword ||
+        post.yoast_head_json?.focus_keyword ||
+        "";
+    }
 
-    const slugEl = document.getElementById("postSlug");
-    if (slugEl) slugEl.value = post.slug || "";
-
-    const statusEl = document.getElementById("postStatus");
-    if (statusEl) statusEl.value = post.status || "draft";
-
-    // 4. Activate edit mode UI
+    // 5. Activate edit mode UI & switch view
     editingPostId = post.id;
     updateEditModeUI(true);
-
-    // 5. Switch to editor view
     switchView("editor");
 
     // 6. Trigger SEO/Word count update after DOM settles
@@ -1277,168 +1101,24 @@ function updateEditModeUI(isEditing) {
   if (!saveBtn || !cancelBtn) return;
 
   if (isEditing) {
-    // Edit Mode
     saveBtn.innerHTML = '<i class="fas fa-check"></i>';
     saveBtn.title = "Update Post";
-    cancelBtn.style.display = "flex"; // Show icon button
+    cancelBtn.style.display = "flex";
   } else {
-    // Create Mode
     saveBtn.innerHTML = '<i class="fab fa-wordpress"></i>';
     saveBtn.title = "Publish to WordPress";
-    cancelBtn.style.display = "none"; // Hide icon button
+    cancelBtn.style.display = "none";
   }
 }
 
-// Update the login modal to include Application Password instructions
+// Update the login modal to include Application Password instructions (delegated to AuthManager)
 async function showLoginModal() {
-  return new Promise((resolve) => {
-    const modal = document.createElement("div");
-    modal.className = "wp-login-modal";
-    modal.innerHTML = `
-      <div class="modal-overlay">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>WordPress Login</h3>
-            <button class="modal-close">&times;</button>
-          </div>
-          <div class="modal-body">
-            <div class="form-group">
-              <label for="login-username">Username</label>
-              <input type="text" id="login-username" placeholder="Your WordPress username" autocomplete="username">
-            </div>
-            <div class="form-group">
-              <label for="login-app-password">Application Password</label>
-              <input type="password" id="login-app-password" placeholder="Your 24-character application password" autocomplete="current-password">
-              <small class="hint">This is NOT your regular WordPress password</small>
-            </div>
-            <div class="form-group remember-me">
-              <label>
-                <input type="checkbox" id="login-remember"> Remember me (not recommended on shared computers)
-              </label>
-            </div>
-            <div class="form-actions">
-              <button id="login-submit" class="btn-primary">
-                <span class="btn-text">Login</span>
-                <span class="spinner" style="display: none;">⌛</span>
-              </button>
-              <button id="login-cancel" class="btn-secondary">Cancel</button>
-            </div>
-            <div class="login-status" id="login-status"></div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    const loginSubmit = document.getElementById("login-submit");
-    const loginCancel = document.getElementById("login-cancel");
-    const modalClose = modal.querySelector(".modal-close");
-    const loginStatus = document.getElementById("login-status");
-
-    let isLoggingIn = false;
-
-    const handleLogin = async () => {
-      if (isLoggingIn) return;
-
-      const username = document.getElementById("login-username").value.trim();
-      const appPassword = document
-        .getElementById("login-app-password")
-        .value.trim();
-      const remember = document.getElementById("login-remember").checked;
-
-      if (!username || !appPassword) {
-        showLoginStatus(
-          "Please enter both username and application password",
-          "error",
-        );
-        return;
-      }
-
-      isLoggingIn = true;
-      loginSubmit.disabled = true;
-      loginSubmit.querySelector(".btn-text").textContent = "Logging in...";
-      loginSubmit.querySelector(".spinner").style.display = "inline-block";
-
-      try {
-        const result = await authenticateWithWordPress(username, appPassword);
-
-        if (result.success) {
-          // Store token with remember preference
-          tokenManagerMultiSite.setToken(
-            btoa(`${username}:${appPassword}`),
-            remember,
-          );
-          showLoginStatus("Login successful!", "success");
-
-          // Close modal after brief delay
-          setTimeout(() => {
-            document.body.removeChild(modal);
-            resolve(true);
-          }, 1000);
-        } else {
-          showLoginStatus(result.error || "Login failed", "error");
-          isLoggingIn = false;
-          loginSubmit.disabled = false;
-          loginSubmit.querySelector(".btn-text").textContent = "Login";
-          loginSubmit.querySelector(".spinner").style.display = "none";
-        }
-      } catch (error) {
-        showLoginStatus(error.message || "An error occurred", "error");
-        isLoggingIn = false;
-        loginSubmit.disabled = false;
-        loginSubmit.querySelector(".btn-text").textContent = "Login";
-        loginSubmit.querySelector(".spinner").style.display = "none";
-      }
-    };
-
-    const showLoginStatus = (message, type) => {
-      loginStatus.textContent = message;
-      loginStatus.className = `login-status ${type}`;
-      loginStatus.style.display = "block";
-    };
-
-    loginSubmit.addEventListener("click", handleLogin);
-
-    const handleCancel = () => {
-      document.body.removeChild(modal);
-      resolve(false);
-    };
-
-    loginCancel.addEventListener("click", handleCancel);
-    modalClose.addEventListener("click", handleCancel);
-
-    // Handle Enter key
-    modal.addEventListener("keypress", (e) => {
-      if (e.key === "Enter" && !isLoggingIn) {
-        handleLogin();
-      }
-    });
-
-    // Auto-focus username field
-    setTimeout(() => {
-      document.getElementById("login-username").focus();
-    }, 100);
-  });
+  return authManager.showLoginModal();
 }
 
-// Add logout functionality
+// Add logout functionality (delegated to AuthManager)
 function addLogoutButton() {
-  const toolbar = document.querySelector(".editor-toolbar");
-  if (!toolbar) return;
-
-  const logoutBtn = document.createElement("button");
-  logoutBtn.id = "logout-btn";
-  logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
-  logoutBtn.className = "logout-button";
-  logoutBtn.addEventListener("click", async () => {
-    if (confirm("Are you sure you want to logout?")) {
-      tokenManagerMultiSite.clearToken();
-      location.reload(); // Reload to show login modal
-    }
-  });
-
-  toolbar.appendChild(logoutBtn);
+  authManager.addLogoutButton();
 }
 
 // Word Count Utility
@@ -1596,7 +1276,7 @@ function createWordCountDisplay() {
             <div class="stat-label">Words</div>
           </div>
         </div>
-        
+
         <div class="stat-box">
           <div class="stat-icon">
             <i class="fas fa-clock"></i>
@@ -1608,7 +1288,7 @@ function createWordCountDisplay() {
         </div>
       </div>
     </div>
-    
+
     <div class="seo-compact">
       <div class="seo-header">
         <span class="seo-label">
@@ -1685,306 +1365,24 @@ function updateWordCount(stats) {
   document.getElementById("word-count-reading").textContent = readingTimeText;
 }
 
-// Create site switcher UI
+// Create site switcher UI (delegated to AuthManager)
 function createSiteSwitcher() {
-  const sites = siteManager.getSites();
-  const activeSite = siteManager.getActiveSite();
-
-  const siteSwitcherHTML = `
-    <div id="site-switcher-container" class="site-switcher-container">
-      <div class="site-switcher-content">
-        <i class="fas fa-globe"></i>
-        <select id="site-selector" class="site-selector">
-          ${sites
-            .map(
-              (site) => `
-            <option value="${site.id}" ${activeSite && activeSite.id === site.id ? "selected" : ""}>
-              ${site.name} (${site.url})
-            </option>
-          `,
-            )
-            .join("")}
-        </select>
-        <button id="manage-sites-btn" class="manage-sites-btn" title="Manage sites">
-          <i class="fas fa-cog"></i>
-        </button>
-        <button id="add-site-btn" class="add-site-btn" title="Add new site">
-          <i class="fas fa-plus"></i>
-        </button>
-      </div>
-    </div>
-  `;
-
-  const toolbar = document.querySelector(".editor-toolbar") || document.body;
-  toolbar.insertAdjacentHTML("afterbegin", siteSwitcherHTML);
-
-  // Event listeners
-  document
-    .getElementById("site-selector")
-    ?.addEventListener("change", handleSiteSwitch);
-  document
-    .getElementById("manage-sites-btn")
-    ?.addEventListener("click", showManageSitesModal);
-  document
-    .getElementById("add-site-btn")
-    ?.addEventListener("click", showAddSiteModal);
+  authManager.createSiteSwitcher();
 }
 
-// Handle site switching
+// Handle site switching (delegated to AuthManager)
 async function handleSiteSwitch(event) {
-  const siteId = event.target.value;
-
-  if (
-    confirm("Switch to this site? Any unsaved changes will be kept locally.")
-  ) {
-    siteManager.setActiveSite(siteId);
-    location.reload(); // Reload to apply new site config
-  } else {
-    // Revert selection
-    const activeSite = siteManager.getActiveSite();
-    if (activeSite) {
-      event.target.value = activeSite.id;
-    }
-  }
+  return authManager.handleSiteSwitch(event);
 }
 
-// Show add site modal
+// Show add site modal (delegated to AuthManager)
 async function showAddSiteModal() {
-  return new Promise((resolve) => {
-    const modal = document.createElement("div");
-    modal.className = "wp-login-modal";
-    modal.innerHTML = `
-      <div class="modal-overlay">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>Add New WordPress Site</h3>
-            <button class="modal-close">&times;</button>
-          </div>
-          <div class="modal-body">
-            <div class="form-group">
-              <label for="site-name">Site Name</label>
-              <input type="text" id="site-name" placeholder="My Blog" autocomplete="off">
-              <small class="hint">A friendly name for this site</small>
-            </div>
-            <div class="form-group">
-              <label for="site-url">Site URL</label>
-              <input type="url" id="site-url" placeholder="https://example.com" autocomplete="url">
-              <small class="hint">Your WordPress site URL (without trailing slash)</small>
-            </div>
-            <div class="form-group">
-              <label for="site-username">Username</label>
-              <input type="text" id="site-username" placeholder="admin" autocomplete="username">
-            </div>
-            <div class="form-group">
-              <label for="site-app-password">Application Password</label>
-              <input type="password" id="site-app-password" placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" autocomplete="current-password">
-              <small class="hint">24-character application password from WordPress</small>
-            </div>
-            <div class="form-actions">
-              <button id="add-site-submit" class="btn-primary">
-                <span class="btn-text">Add Site & Login</span>
-                <span class="spinner" style="display: none;">⌛</span>
-              </button>
-              <button id="add-site-cancel" class="btn-secondary">Cancel</button>
-            </div>
-            <div class="login-status" id="add-site-status"></div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    const submitBtn = document.getElementById("add-site-submit");
-    const cancelBtn = document.getElementById("add-site-cancel");
-    const closeBtn = modal.querySelector(".modal-close");
-    const statusEl = document.getElementById("add-site-status");
-
-    const handleSubmit = async () => {
-      const name = document.getElementById("site-name").value.trim();
-      const url = document
-        .getElementById("site-url")
-        .value.trim()
-        .replace(/\/$/, "");
-      const username = document.getElementById("site-username").value.trim();
-      const appPassword = document
-        .getElementById("site-app-password")
-        .value.trim();
-
-      if (!name || !url || !username || !appPassword) {
-        showStatus("Please fill in all fields", "error");
-        return;
-      }
-
-      // Validate URL format
-      try {
-        new URL(url);
-      } catch {
-        showStatus("Please enter a valid URL", "error");
-        return;
-      }
-
-      submitBtn.disabled = true;
-      submitBtn.querySelector(".btn-text").textContent =
-        "Testing connection...";
-      submitBtn.querySelector(".spinner").style.display = "inline-block";
-
-      try {
-        // Test authentication
-        const token = btoa(`${username}:${appPassword}`);
-        const response = await fetch(`${url}/wp-json/wp/v2/users/me`, {
-          method: "GET",
-          headers: {
-            Authorization: `Basic ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(
-            "Authentication failed. Please check your credentials.",
-          );
-        }
-
-        // Create and save site
-        const site = siteManager.createSite(name, url, username, token);
-        siteManager.saveSite(site);
-        siteManager.setActiveSite(site.id);
-
-        showStatus("Site added successfully!", "success");
-
-        setTimeout(() => {
-          document.body.removeChild(modal);
-          location.reload();
-        }, 1000);
-      } catch (error) {
-        showStatus(error.message, "error");
-        submitBtn.disabled = false;
-        submitBtn.querySelector(".btn-text").textContent = "Add Site & Login";
-        submitBtn.querySelector(".spinner").style.display = "none";
-      }
-    };
-
-    const showStatus = (message, type) => {
-      statusEl.textContent = message;
-      statusEl.className = `login-status ${type}`;
-      statusEl.style.display = "block";
-    };
-
-    const handleCancel = () => {
-      document.body.removeChild(modal);
-      resolve(false);
-    };
-
-    submitBtn.addEventListener("click", handleSubmit);
-    cancelBtn.addEventListener("click", handleCancel);
-    closeBtn.addEventListener("click", handleCancel);
-
-    modal.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") handleSubmit();
-    });
-  });
+  return authManager.showAddSiteModal();
 }
 
-// Show manage sites modal
+// Show manage sites modal (delegated to AuthManager)
 function showManageSitesModal() {
-  const sites = siteManager.getSites();
-  const activeSite = siteManager.getActiveSite();
-
-  const modal = document.createElement("div");
-  modal.className = "wp-login-modal";
-  modal.innerHTML = `
-    <div class="modal-overlay">
-      <div class="modal-content" style="max-width: 600px;">
-        <div class="modal-header">
-          <h3>Manage WordPress Sites</h3>
-          <button class="modal-close">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div class="sites-list">
-            ${
-              sites.length === 0
-                ? '<p class="no-sites">No sites configured yet.</p>'
-                : sites
-                    .map(
-                      (site) => `
-              <div class="site-item ${activeSite && activeSite.id === site.id ? "active" : ""}" data-site-id="${site.id}">
-                <div class="site-info">
-                  <div class="site-name">
-                    ${site.name}
-                    ${activeSite && activeSite.id === site.id ? '<span class="active-badge">Active</span>' : ""}
-                  </div>
-                  <div class="site-url">${site.url}</div>
-                  <div class="site-meta">Username: ${site.username}</div>
-                </div>
-                <div class="site-actions">
-                  ${
-                    activeSite && activeSite.id === site.id
-                      ? ""
-                      : `
-                    <button class="btn-sm btn-switch" data-site-id="${site.id}">
-                      <i class="fas fa-exchange-alt"></i> Switch
-                    </button>
-                  `
-                  }
-                  <button class="btn-sm btn-danger btn-delete" data-site-id="${site.id}">
-                    <i class="fas fa-trash"></i> Delete
-                  </button>
-                </div>
-              </div>
-            `,
-                    )
-                    .join("")
-            }
-          </div>
-          <div class="form-actions" style="margin-top: 20px;">
-            <button id="close-manage-modal" class="btn-primary">Close</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-
-  const closeModal = () => document.body.removeChild(modal);
-
-  modal.querySelector(".modal-close").addEventListener("click", closeModal);
-  modal
-    .querySelector("#close-manage-modal")
-    .addEventListener("click", closeModal);
-
-  // Switch site handlers
-  modal.querySelectorAll(".btn-switch").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const siteId = e.currentTarget.dataset.siteId;
-      if (confirm("Switch to this site?")) {
-        siteManager.setActiveSite(siteId);
-        location.reload();
-      }
-    });
-  });
-
-  // Delete site handlers
-  modal.querySelectorAll(".btn-delete").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      const siteId = e.currentTarget.dataset.siteId;
-      const site = sites.find((s) => s.id === siteId);
-
-      if (confirm(`Delete "${site.name}"? This action cannot be undone.`)) {
-        siteManager.removeSite(siteId);
-
-        // If deleting active site, clear active and reload
-        if (activeSite && activeSite.id === siteId) {
-          sessionStorage.removeItem("active_site_id");
-          location.reload();
-        } else {
-          closeModal();
-          showManageSitesModal(); // Refresh the modal
-        }
-      }
-    });
-  });
+  authManager.showManageSitesModal();
 }
 
 // ====================================
@@ -2344,34 +1742,35 @@ function setupEventHandlers(editor) {
   document.getElementById("postTitle")?.addEventListener("input", updateSEO);
   document.getElementById("postExcerpt")?.addEventListener("input", updateSEO);
 
-  // Save button handler (updated to handle featured image upload)
+  // Save button handler (Create & Update)
   document
     .getElementById("saveBtn")
     ?.addEventListener("click", async function () {
-      const button = this;
-      const originalText = button.innerHTML;
+      const btn = this;
+      const isUpdate = !!editingPostId;
+      const isPage = currentEditingType === "page";
+      const originalIcon = isUpdate
+        ? '<i class="fas fa-check"></i>'
+        : '<i class="fab fa-wordpress"></i>';
+
       try {
-        button.innerHTML = " Processing...";
-        button.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+        btn.title = isUpdate ? "Updating..." : "Publishing...";
 
         // 1. Upload featured image if selected
         let featuredImageId = null;
         if (window.featuredImageFile) {
           try {
-            console.log(
-              "Uploading featured image:",
-              window.featuredImageFile.name,
-            );
             const uploadResult = await uploadFeaturedImage(
               window.featuredImageFile,
             );
-            if (uploadResult.success) {
-              featuredImageId = uploadResult.id;
-            } else {
-              throw new Error(uploadResult.error);
-            }
+            if (uploadResult.success) featuredImageId = uploadResult.id;
           } catch (error) {
-            alert(`Warning: Featured image failed. ${error.message}`);
+            console.warn(
+              "Featured image upload failed, continuing without it:",
+              error,
+            );
           }
         }
 
@@ -2380,64 +1779,98 @@ function setupEventHandlers(editor) {
         const updatedData = await uploadPendingImages(outputData);
         const htmlContent = await convertEditorJsToHTML(updatedData);
 
-        // 3. Collect post data
-        const postInfo = {
-          title: document.getElementById("postTitle")?.value || "Untitled",
-          excerpt: document.getElementById("postExcerpt")?.value || "",
-          status: document.getElementById("postStatus")?.value || "draft",
-          slug: document.getElementById("postSlug")?.value || "",
-          yoast: getAdvancedYoastData(),
-        };
-
-        if (editingPostId) {
-          // ✅ UPDATE EXISTING POST
-          const config = getActiveConfig();
-          const token = tokenManagerMultiSite.getToken();
-          const manager = new PostManager(`${config.WORDPRESS_API}`, token);
-
-          await manager.updatePost(editingPostId, {
-            title: postInfo.title,
-            slug: postInfo.slug,
-            content: htmlContent,
-            status: postInfo.status,
-            excerpt: postInfo.excerpt,
-            featured_media: featuredImageId || 0,
-          });
-
-          alert(`Post #${editingPostId} updated successfully!`);
-        } else {
-          // ✅ CREATE NEW POST (Existing Flow)
-          await postToWordPress(htmlContent, postInfo, featuredImageId);
-          alert("Post published successfully!");
+        // 3. Collect form data
+        const title = document.getElementById("postTitle")?.value || "Untitled";
+        const excerpt = document.getElementById("postExcerpt")?.value || "";
+        const status = document.getElementById("postStatus")?.value || "draft";
+        const keyword = document.getElementById("postKeyword")?.value || "";
+        let slug = document.getElementById("postSlug")?.value?.trim();
+        if (!slug && title) {
+          slug = title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "");
         }
 
-        // Reset state on success
-        editingPostId = null;
-        updateEditModeUI(false);
-        saveToLocalStorage(updatedData);
+        // 4. Build payload with SEO plugin support
+        const payload = {
+          title,
+          slug,
+          content: htmlContent,
+          status,
+          excerpt,
+          featured_media: featuredImageId || 0,
+        };
 
-        // Clear temp files
-        if (window.pendingUploads) window.pendingUploads.clear();
+        // Add Yoast/SEO meta if provided
+        if (keyword || excerpt) {
+          payload.meta = {
+            _yoast_wpseo_focuskw: keyword || "", // Yoast SEO focus keyword
+            rank_math_focus_keyword: keyword || "", // Rank Math focus keyword
+            _yoast_wpseo_metadesc: excerpt || "",
+            _yoast_wpseo_title: title || "",
+          };
+        }
+
+        // 5. API Call (WP REST uses POST for both create & update)
+        const config = getActiveConfig();
+        const token = tokenManagerMultiSite.getToken();
+        const baseEndpoint = isPage
+          ? `${config.WORDPRESS_API}/pages`
+          : `${config.WORDPRESS_API}/posts`;
+        const targetUrl = editingPostId
+          ? `${baseEndpoint}/${editingPostId}`
+          : baseEndpoint;
+
+        const response = await fetch(targetUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Basic ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`WordPress API ${response.status}: ${errText}`);
+        }
+
+        const result = await response.json();
+
+        // 6. Success UI & State Management
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        btn.title = "Success!";
+        alert(
+          `✅ ${isPage ? "Page" : "Post"} ${isUpdate ? "updated" : "published"} successfully!`,
+        );
+
+        // If it was a new item, lock to edit mode & persist type
+        if (!isUpdate) {
+          editingPostId = result.id;
+          currentEditingType = isPage ? "page" : "post";
+          updateEditModeUI(true);
+          updateContentTypeIndicator(currentEditingType);
+        }
+
+        saveToLocalStorage(updatedData);
         window.featuredImageFile = null;
         const featInput = document.getElementById("featuredImageUpload");
         if (featInput) featInput.value = "";
-
-        button.innerHTML = " Success!";
-        setTimeout(() => {
-          button.innerHTML = editingPostId
-            ? " Update Post"
-            : " Publish to WordPress";
-          button.style.background = editingPostId
-            ? "linear-gradient(to right, #2ecc71, #27ae60)"
-            : "linear-gradient(to right, #4a6cf7, #6a11cb)";
-          button.disabled = false;
-        }, 2000);
       } catch (error) {
         console.error("Publish/Update failed:", error);
-        button.innerHTML = " Failed";
-        button.style.background = "linear-gradient(to right, #e74c3c, #c0392b)";
-        button.disabled = false;
-        alert(`Operation failed: ${error.message}`);
+        btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+        btn.title = "Failed";
+        alert(`❌ Operation failed: ${error.message}`);
+      } finally {
+        setTimeout(() => {
+          const isUpdateNow = !!editingPostId;
+          btn.innerHTML = isUpdateNow
+            ? '<i class="fas fa-check"></i>'
+            : '<i class="fab fa-wordpress"></i>';
+          btn.disabled = false;
+          btn.title = isUpdateNow ? "Update Post" : "Publish to WordPress";
+        }, 2000);
       }
     });
 
@@ -2491,13 +1924,17 @@ function setupEventHandlers(editor) {
   });
 }
 
-// Export functions
+// Export functions (maintain backward compatibility)
 window.siteManager = siteManager;
 window.getActiveConfig = getActiveConfig;
 window.tokenManagerMultiSite = tokenManagerMultiSite;
 window.createSiteSwitcher = createSiteSwitcher;
 window.seoAnalyzer = seoAnalyzer;
 window.updateWordCountWithSEO = updateWordCountWithSEO;
+
+// Expose managers for external access
+window.authManager = authManager;
+window.imageUploader = imageUploader;
 
 // Network Status Indicator
 function updateNetworkStatus() {

@@ -64,7 +64,7 @@ export class PostManager {
 
     // Build API params - request minimal fields for list view
     const params = new URLSearchParams({
-      context: fields === "full" ? "edit" : "view", // 'view' returns lighter payload
+      context: fields === "full" ? "edit" : "view",
       status,
       per_page: String(per_page),
       page: String(page),
@@ -72,10 +72,9 @@ export class PostManager {
       orderby,
       type,
       ...(search.trim() ? { search: search.trim() } : {}),
-      // Request only needed fields for list rendering
       _fields:
         fields === "minimal"
-          ? "id,title,date,modified,status,link,slug,excerpt,featured_media"
+          ? "id,title,type,date,modified,status,link,slug,excerpt,featured_media" // ✅ Added 'type'
           : undefined,
     });
 
@@ -114,9 +113,8 @@ export class PostManager {
     if (!Number.isInteger(postId) || postId < 1) {
       throw new TypeError("Valid post ID is required");
     }
-
-    // Never cache single post fetches - always get freshest edit data
-    const url = `${this.apiUrl}/posts/${postId}?context=edit&_fields=id,title,slug,content,excerpt,status,modified,author,featured_media,meta,yoast_head_json`;
+    // ✅ Added 'type' to _fields
+    const url = `${this.apiUrl}/posts/${postId}?context=edit&_fields=id,title,type,slug,content,excerpt,status,modified,author,featured_media,meta,yoast_head_json`;
     const response = await this.safeFetch(url, {
       method: "GET",
       headers: this.defaultHeaders,

@@ -1571,3 +1571,37 @@ LIBRARY VIEW STYLES
   border-color: var(--accent-color);
   outline: none;
 }
+
+/* Create New Button */
+.btn-create-new {
+  background: #2ecc71;
+  color: #fff;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.btn-create-new:hover {
+  background: #27ae60;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Content Type Indicator */
+.content-type-indicator {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-muted) !important;
+  font-weight: 600;
+  text-transform: capitalize;
+  cursor: not-allowed;
+}
+.content-type-indicator:focus {
+  border-color: var(--border-color) !important;
+  box-shadow: none !important;
+}

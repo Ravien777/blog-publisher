@@ -36,14 +36,6 @@
               />
             </div>
             <div class="form-group">
-              <label for="postKeyword">Keyword</label>
-              <input
-                type="text"
-                id="postKeyword"
-                placeholder="Enter post keyword..."
-              />
-            </div>
-            <div class="form-group">
               <label for="postExcerpt">Excerpt (Meta)</label>
               <textarea
                 id="postExcerpt"
@@ -66,6 +58,43 @@
             <div class="form-group">
               <label for="featuredImageUpload">Featured Image</label>
               <input type="file" id="featuredImageUpload" accept="image/*" />
+            </div>
+          </div>
+
+          <div class="config-section">
+            <h3>SEO & Publishing</h3>
+
+            <div class="form-group">
+              <label for="postKeyword">Focus Keyword</label>
+              <input
+                type="text"
+                id="postKeyword"
+                placeholder="Target keyword for SEO"
+              />
+              <small class="hint">Works with Yoast SEO & Rank Math</small>
+            </div>
+
+            <div class="form-group">
+              <label for="postSlug">Slug (URL)</label>
+              <input
+                type="text"
+                id="postSlug"
+                placeholder="auto-generated-from-title"
+              />
+              <small class="hint"
+                >Leave empty to auto-generate from title</small
+              >
+            </div>
+
+            <div class="form-group">
+              <label>Content Type</label>
+              <input
+                type="text"
+                id="contentType"
+                class="content-type-indicator"
+                readonly
+                title="Content type"
+              />
             </div>
           </div>
         </div>

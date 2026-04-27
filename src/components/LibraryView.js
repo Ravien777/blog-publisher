@@ -3,10 +3,11 @@ import { PostPagination } from "./PostPagination.js";
 import { cache } from "../utils/CacheManagers.js";
 
 export class LibraryView {
-  constructor(container, managers, onEditPost) {
+  constructor(container, managers, onEditPost, onCreateNew) {
     this.container = container;
-    this.managers = managers; // { post: PostManager, page: PageManager }
+    this.managers = managers || { post: null, page: null };
     this.onEditPost = onEditPost;
+    this.onCreateNew = onCreateNew || (() => {});
     this.state = {
       currentPage: 1,
       filters: { status: "any", search: "" },
@@ -30,17 +31,14 @@ export class LibraryView {
   }
 
   get currentManager() {
-    return this.managers[this.state.type];
-  }
-
-  get cacheKeyPrefix() {
-    return this.state.type === "page" ? "pages_list" : "posts_list";
+    return this.managers[this.state.type] || this.managers.post;
   }
 
   bindEvents() {
     const searchInput = this.container.querySelector("#lib-search");
     const statusFilter = this.container.querySelector("#lib-status-filter");
     const refreshBtn = this.container.querySelector("#lib-refresh");
+    const createBtn = this.container.querySelector("#lib-create-new");
     const typeBtns = this.container.querySelectorAll(".type-toggle-btn");
 
     if (searchInput) {
@@ -67,9 +65,16 @@ export class LibraryView {
 
     if (refreshBtn) {
       refreshBtn.addEventListener("click", () => {
-        cache.invalidate(this.cacheKeyPrefix);
+        cache.invalidate(`posts_list_${this.state.type}`);
         this.load({ useCache: false });
       });
+    }
+
+    // ✅ FIX: Bind Create New button
+    if (createBtn) {
+      createBtn.addEventListener("click", () =>
+        this.onCreateNew(this.state.type),
+      );
     }
 
     typeBtns.forEach((btn) => {
@@ -79,8 +84,7 @@ export class LibraryView {
         typeBtns.forEach((b) => b.classList.remove("active"));
         btn.classList.add("active");
 
-        cache.invalidate(this.cacheKeyPrefix);
-
+        cache.invalidate(`posts_list_${this.state.type}`);
         this.state.type = btn.dataset.type;
         this.state.currentPage = 1;
         this.load();
@@ -156,7 +160,7 @@ export class LibraryView {
   async handleStatusChange(post, newStatus) {
     try {
       await this.currentManager.updatePostStatus(post.id, newStatus);
-      this.currentManager.invalidatePostCache(post.id);
+      this.currentManager.invalidatePostCache(post.id, this.state.type);
       this.load();
     } catch (error) {
       alert(`Failed to update status: ${error.message}`);
@@ -168,7 +172,7 @@ export class LibraryView {
     if (!confirm(`Move "${post.title}" to trash?`)) return;
     try {
       await this.currentManager.deletePost(post.id);
-      this.currentManager.invalidatePostCache(post.id);
+      this.currentManager.invalidatePostCache(post.id, this.state.type);
       this.load();
     } catch (error) {
       alert(`Failed to delete: ${error.message}`);
@@ -182,6 +186,6 @@ export class LibraryView {
   }
 
   clearCache() {
-    cache.invalidate(this.cacheKeyPrefix);
+    cache.invalidate(`posts_list_${this.state.type}`);
   }
 }
