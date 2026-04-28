@@ -807,7 +807,7 @@ button.theme-toggle:active {
 }
 
 .wp-login-modal .modal-content {
-  background: white;
+  background: var(--bg-primary);
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   max-width: 480px;
@@ -1486,9 +1486,11 @@ LIBRARY VIEW STYLES
 }
 
 .pagination-wrapper {
-  padding: 16px 20px;
-  border-top: 1px solid var(--border-color);
+  padding: 16px;
+  border-top: 1px solid #3e3e42;
   background: var(--bg-secondary);
+  flex: 1;
+  max-height: 128px;
 }
 
 .pagination-controls {
