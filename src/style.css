@@ -902,6 +902,10 @@ button.theme-toggle:active {
   color: var(--text-primary);
 }
 
+.wp-login-modal .form-group input {
+  background: var(--bg-primary);
+}
+
 .wp-login-modal .form-group input[type="text"],
 .wp-login-modal .form-group input[type="password"] {
   width: 100%;

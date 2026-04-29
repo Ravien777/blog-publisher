@@ -11,6 +11,7 @@ import Underline from "@editorjs/underline";
 import InlineCode from "@editorjs/inline-code";
 import Marker from "@editorjs/marker";
 import Delimiter from "@editorjs/delimiter";
+import ColorPicker, { ColorPickerWithoutSanitize } from "editorjs-color-picker";
 
 import "./style.css";
 
@@ -826,6 +827,10 @@ async function initializeEditor() {
               },
             },
           },
+        },
+        ColorPicker: {
+          class: ColorPickerWithoutSanitize,
+          inlineToolbar: true,
         },
         list: {
           class: List,
