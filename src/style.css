@@ -1607,3 +1607,76 @@ LIBRARY VIEW STYLES
   border-color: var(--border-color) !important;
   box-shadow: none !important;
 }
+
+/* ====================================
+SIDEBAR POST LINK WIDGET
+==================================== */
+.sidebar-post-link-section {
+  padding: 0 20px 12px !important;
+}
+
+.sidebar-post-link-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 8px;
+  transition: border-color 0.2s;
+}
+
+.sidebar-post-link-container:hover {
+  border-color: var(--accent-color);
+}
+
+.sidebar-post-link {
+  flex: 1;
+  color: var(--accent-color);
+  text-decoration: none;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.sidebar-post-link:hover:not(.disabled) {
+  text-decoration: underline;
+  color: var(--accent-hover);
+}
+
+.sidebar-post-link.disabled {
+  color: var(--text-muted);
+  cursor: default;
+  pointer-events: none;
+}
+
+.copy-link-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  border-radius: 3px;
+}
+
+.copy-link-btn:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  color: var(--accent-color);
+}
+
+.copy-link-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.copy-link-btn.copied {
+  color: var(--success);
+}

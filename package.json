@@ -1,6 +1,8 @@
 {
   "name": "blog-publisher-app",
   "version": "2.0.0",
+  "description": "A desktop application for publishing blog posts to WordPress.",
+  "author": "Tasfinity",
   "main": "main.js",
   "scripts": {
     "dev": "webpack --config webpack.dev.js",
@@ -44,6 +46,7 @@
       "index.html",
       "package.json",
       "main.js",
+      "preload.js",
       "build/**/*"
     ],
     "linux": {

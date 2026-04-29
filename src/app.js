@@ -327,6 +327,7 @@ function createNewPost(type = "post") {
 
   // Reset state & clear drafts
   editingPostId = null;
+  updateSidebarPostLink(null); // ✅ NEW: Clear permalink for new drafts
   localStorage.removeItem("editorjs-content");
   updateEditModeUI(false);
 
@@ -897,6 +898,9 @@ async function initializeEditor() {
         // Create word count display
         createWordCountDisplay();
 
+        // Create post link widget
+        createPostLinkWidget();
+
         // Get initial stats and SEO score
         editor
           .save()
@@ -1040,7 +1044,17 @@ async function loadPostIntoEditor(post) {
       if (el) el.value = value;
     });
 
-    // 4. Load SEO Keyword (Supports Yoast & Rank Math)
+    // 4. Update post link in sidebar
+    updateSidebarPostLink(post.link || null);
+
+    console.log(`Loaded post ID ${post.id} into editor:`, {
+      title: post.titleRaw,
+      slug: post.slug,
+      status: post.status,
+      link: post.link,
+    });
+
+    // 5. Load SEO Keyword (Supports Yoast & Rank Math)
     const keywordInput = document.getElementById("postKeyword");
     if (keywordInput && post.meta) {
       keywordInput.value = (
@@ -1051,12 +1065,12 @@ async function loadPostIntoEditor(post) {
       ).trim();
     }
 
-    // 5. Activate edit mode UI & switch view
+    // 6. Activate edit mode UI & switch view
     editingPostId = post.id;
     updateEditModeUI(true);
     switchView("editor");
 
-    // 6. Trigger SEO/Word count update after DOM settles
+    // 7. Trigger SEO/Word count update after DOM settles
     setTimeout(() => {
       if (window.editorInstance) {
         window.editorInstance.save().then((data) => {
@@ -1368,6 +1382,90 @@ function updateWordCount(stats) {
   const readingTimeText =
     stats.readingTime === 1 ? "1 min" : `${stats.readingTime} min`;
   document.getElementById("word-count-reading").textContent = readingTimeText;
+}
+
+/**
+ * Creates the Post/Page URL widget at the top of the sidebar
+ */
+function createPostLinkWidget() {
+  const sidebarContainer = document.getElementById("sidebar-post-config");
+  if (!sidebarContainer) return;
+
+  const widgetHTML = `
+    <div class="config-section sidebar-post-link-section">
+      <label>Permalink</label>
+      <div class="sidebar-post-link-container" id="postLinkContainer">
+        <a href="#" target="_blank" id="postLink" class="sidebar-post-link disabled" title="Click to copy URL">Not published yet</a>
+        <button id="copyPostLinkBtn" class="copy-link-btn" title="Copy to clipboard" disabled>
+          <i class="fas fa-copy"></i>
+        </button>
+      </div>
+    </div>
+  `;
+
+  sidebarContainer.insertAdjacentHTML("afterbegin", widgetHTML);
+
+  // Event delegation: Click container/link to copy
+  const container = document.getElementById("postLinkContainer");
+  container?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const linkEl = document.getElementById("postLink");
+    const btnEl = document.getElementById("copyPostLinkBtn");
+    const url = linkEl?.getAttribute("data-url");
+
+    if (!url || linkEl.classList.contains("disabled")) return;
+
+    try {
+      await navigator.clipboard.writeText(url);
+
+      // Visual feedback
+      const originalIcon = btnEl.innerHTML;
+      btnEl.innerHTML = '<i class="fas fa-check"></i>';
+      btnEl.classList.add("copied");
+      linkEl.textContent = "Copied!";
+      linkEl.style.color = "var(--success)";
+
+      setTimeout(() => {
+        btnEl.innerHTML = originalIcon;
+        btnEl.classList.remove("copied");
+        linkEl.textContent = new URL(url).pathname;
+        linkEl.style.color = "";
+      }, 1500);
+    } catch (err) {
+      console.error("Clipboard copy failed:", err);
+      linkEl.textContent = "Copy failed";
+      setTimeout(() => {
+        linkEl.textContent = new URL(url).pathname;
+      }, 1000);
+    }
+  });
+}
+
+/**
+ * Updates the sidebar permalink widget state
+ * @param {string|null} url - The published post/page URL
+ */
+function updateSidebarPostLink(url) {
+  const linkEl = document.getElementById("postLink");
+  const btnEl = document.getElementById("copyPostLinkBtn");
+  if (!linkEl || !btnEl) return;
+
+  if (url && securityUtils.sanitizeUrl(url)) {
+    const safeUrl = securityUtils.sanitizeUrl(url);
+    linkEl.href = safeUrl;
+    linkEl.textContent = new URL(safeUrl).pathname;
+    linkEl.setAttribute("data-url", safeUrl);
+    linkEl.classList.remove("disabled");
+    btnEl.disabled = false;
+    btnEl.title = "Copy URL to clipboard";
+  } else {
+    linkEl.href = "#";
+    linkEl.textContent = "Not published yet";
+    linkEl.removeAttribute("data-url");
+    linkEl.classList.add("disabled");
+    btnEl.disabled = true;
+    btnEl.title = "URL unavailable until published";
+  }
 }
 
 // Create site switcher UI (delegated to AuthManager)
@@ -1996,6 +2094,28 @@ document.addEventListener("DOMContentLoaded", () => {
       saved === "dark" ? "Dark Mode" : "Light Mode";
   }
 
+  // ✅ Auto-update listener using exposed API
+  if (window.electronAPI) {
+    // Listen for update available
+    window.electronAPI.onUpdateAvailable(() => {
+      showToast("📦 Update available! Downloading in background...", "info");
+    });
+
+    // Listen for update downloaded
+    window.electronAPI.onUpdateDownloaded(() => {
+      showUpdatePrompt();
+    });
+
+    // Listen for errors
+    window.electronAPI.onUpdateError((error) => {
+      console.error("Update error:", error);
+      showToast(`⚠️ Update failed: ${error}`, "warning");
+    });
+
+    // Optional: Check for updates on load
+    window.electronAPI.checkForUpdates();
+  }
+
   // View Toggles
   document
     .getElementById("view-editor-btn")
@@ -2016,6 +2136,61 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   setupCancelEditButton();
 });
+
+// Helper: Show non-blocking toast notification
+function showToast(message, type = "info") {
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `<span>${message}</span><button class="toast-close">&times;</button>`;
+  toast.style.cssText = `
+    position: fixed; bottom: 40px; right: 20px; 
+    background: ${type === "warning" ? "#f39c12" : type === "error" ? "#e74c3c" : "#007acc"};
+    color: white; padding: 12px 20px; border-radius: 6px; 
+    display: flex; align-items: center; gap: 12px; z-index: 9999;
+    animation: slideIn 0.3s ease;
+  `;
+  document.body.appendChild(toast);
+
+  toast
+    .querySelector(".toast-close")
+    ?.addEventListener("click", () => toast.remove());
+  setTimeout(() => toast.remove(), 5000);
+}
+
+// Helper: Show restart prompt when update is ready
+function showUpdatePrompt() {
+  if (document.getElementById("update-prompt")) return; // Avoid duplicates
+
+  const prompt = document.createElement("div");
+  prompt.id = "update-prompt";
+  prompt.className = "update-prompt";
+  prompt.innerHTML = `
+    <div class="update-prompt-content">
+      <p>✅ New version downloaded!</p>
+      <div class="update-prompt-actions">
+        <button id="restart-now-btn" class="btn-primary">Restart Now</button>
+        <button id="restart-later-btn" class="btn-secondary">Later</button>
+      </div>
+    </div>
+  `;
+  prompt.style.cssText = `
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--bg-secondary); border: 1px solid var(--border-color);
+    border-radius: 8px; padding: 16px; z-index: 10000;
+    box-shadow: var(--shadow-md);
+  `;
+  document.body.appendChild(prompt);
+
+  document.getElementById("restart-now-btn")?.addEventListener("click", () => {
+    window.electronAPI?.restartApp();
+  });
+
+  document
+    .getElementById("restart-later-btn")
+    ?.addEventListener("click", () => {
+      prompt.remove();
+    });
+}
 
 // TODO: Consider adding a schedule publish feature to allow users to set a future date/time for publishing posts.
 // TODO: Add support for custom taxonomies (categories, tags) when creating posts.

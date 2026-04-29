@@ -84,7 +84,7 @@ export class PageManager extends PostManager {
       throw new TypeError("Valid page ID is required");
 
     // ✅ Added 'type' to _fields
-    const url = `${this.apiUrl}/pages/${postId}?context=edit&_fields=id,title,type,slug,content,excerpt,status,modified,author,featured_media,meta,yoast_head_json`;
+    const url = `${this.apiUrl}/pages/${postId}?context=edit&_fields=id,title,type,slug,link,content,excerpt,status,modified,author,featured_media,meta,yoast_head_json`;
     const response = await this.safeFetch(url, {
       method: "GET",
       headers: this.defaultHeaders,
