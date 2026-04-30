@@ -500,44 +500,38 @@ async function convertEditorJsToHTML(jsonData) {
 
         case "columns":
           if (block.data?.items?.length) {
-            let colsHtml = "";
-            for (const col of block.data.items) {
-              if (col.blocks && col.blocks.length > 0) {
-                // ✅ Properly await recursive async call to prevent [object Promise]
-                const colContent = await convertEditorJsToHTML({
-                  blocks: col.blocks,
-                });
-                colsHtml += `<div class="wp-block-column">${colContent}</div>`;
-              } else {
-                colsHtml += `<div class="wp-block-column"></div>`;
-              }
-            }
-            html += `<div class="wp-block-columns">${colsHtml}</div>`;
+            // ✅ FIX: Await recursive conversion to prevent [object Promise]
+            const colsHtmlArray = await Promise.all(
+              block.data.items.map(async (col) => {
+                if (col.blocks && col.blocks.length > 0) {
+                  const innerHtml = await convertEditorJsToHTML({
+                    blocks: col.blocks,
+                  });
+                  return `<div class="wp-block-column">${innerHtml}</div>`;
+                }
+                return `<div class="wp-block-column"></div>`;
+              }),
+            );
+            html += `<div class="wp-block-columns">${colsHtmlArray.join("")}</div>`;
           }
           break;
 
         case "custom-button":
           const btnText = securityUtils.escapeHtml(
-            block.data?.text || "Button",
+            block.data?.text || "Click Here",
           );
           const btnLink = securityUtils.sanitizeUrl(block.data?.link || "#");
-          const txtColor = this._validateHex(block.data?.textColor)
+          const txtColor = /^#([0-9A-F]{3}){1,2}$/i.test(block.data?.textColor)
             ? block.data.textColor
             : "#ffffff";
-          const bgColor = this._validateHex(block.data?.bgColor)
+          const bgColor = /^#([0-9A-F]{3}){1,2}$/i.test(block.data?.bgColor)
             ? block.data.bgColor
             : "#007acc";
-          const radius = this._validateRadius(block.data?.radius)
+          const radius = /^[\d]+(px|%|em|rem)?$/.test(block.data?.radius)
             ? block.data.radius
             : "4px";
 
-          html += `<a class="wp-block-custom-button" 
-            href="${btnLink}" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            style="display:inline-block; color:${txtColor}; background-color:${bgColor}; border-radius:${radius}; padding:10px 20px; text-decoration:none; font-weight:600; text-align:center;">
-            ${btnText}
-           </a>`;
+          html += `<div class="wp-block-custom-button-wrapper"><a class="wp-block-custom-button" href="${btnLink}" target="_blank" rel="noopener" style="display:inline-block; color:${txtColor}; background-color:${bgColor}; border-radius:${radius}; padding:10px 20px; text-decoration:none; font-weight:600; text-align:center;">${btnText}</a></div>`;
           break;
 
         case "list":

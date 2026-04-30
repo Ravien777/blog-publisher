@@ -1,6 +1,6 @@
 /**
- * CustomButtonBlock.js
- * Editor.js Block Tool for configurable buttons.
+ * src/blocks/CustomButton.js
+ * Custom Editor.js block for fully configurable buttons.
  */
 export class CustomButtonBlock {
   static get toolbox() {
@@ -10,124 +10,82 @@ export class CustomButtonBlock {
     };
   }
 
-  constructor({ data, config, api, readOnly }) {
+  constructor({ data, api, readOnly }) {
     this.api = api;
     this.readOnly = readOnly;
     this.data = {
-      text: data.text || "",
-      link: data.link || "",
+      text: data.text || "Click Here",
+      link: data.link || "#",
       textColor: data.textColor || "#ffffff",
       bgColor: data.bgColor || "#007acc",
       radius: data.radius || "4px",
     };
-    this.settings = [
-      {
-        label: "Button Text",
-        type: "text",
-        key: "text",
-        placeholder: "Click here",
-      },
-      {
-        label: "Destination URL",
-        type: "url",
-        key: "link",
-        placeholder: "https://example.com",
-      },
-      {
-        label: "Text Color",
-        type: "color",
-        key: "textColor",
-        default: "#ffffff",
-      },
-      {
-        label: "Background Color",
-        type: "color",
-        key: "bgColor",
-        default: "#007acc",
-      },
-      {
-        label: "Border Radius",
-        type: "text",
-        key: "radius",
-        placeholder: "4px, 50%, etc.",
-        default: "4px",
-      },
-    ];
   }
 
   render() {
     this.wrapper = document.createElement("div");
     this.wrapper.classList.add("cdx-button-wrapper");
 
-    // Live preview button
+    // Create live preview link
     this.previewBtn = document.createElement("a");
     this.previewBtn.className = "cdx-button-preview";
     this.previewBtn.target = "_blank";
-    this.previewBtn.rel = "noopener noreferrer";
-    this._applyStyles();
+    this.previewBtn.rel = "noopener";
+    this.previewBtn.href = this.data.link;
+    this.previewBtn.textContent = this.data.text;
+    this.previewBtn.style.color = this.data.textColor;
+    this.previewBtn.style.backgroundColor = this.data.bgColor;
+    this.previewBtn.style.borderRadius = this.data.radius;
+    this.previewBtn.style.padding = "10px 20px";
+    this.previewBtn.style.display = "inline-block";
+    this.previewBtn.style.textDecoration = "none";
+    this.previewBtn.style.fontWeight = "600";
+    this.previewBtn.style.transition = "all 0.2s";
+
     this.wrapper.appendChild(this.previewBtn);
 
-    // Settings panel
-    this.settingsContainer = document.createElement("div");
-    this.settingsContainer.className = "cdx-button-settings";
-    this.settings.forEach(({ label, type, key, placeholder, default: def }) => {
-      const group = document.createElement("div");
-      group.className = "cdx-settings-group";
-      const labelEl = document.createElement("label");
-      labelEl.textContent = label;
-      const input = document.createElement("input");
-      input.type = type;
-      input.placeholder = placeholder || def || "";
-      input.value = this.data[key] || def || "";
-      input.dataset.key = key;
-      input.addEventListener("input", (e) => {
-        this.data[key] = e.target.value;
-        this._applyStyles();
+    if (!this.readOnly) {
+      // Settings panel (only in editor mode)
+      this.settings = document.createElement("div");
+      this.settings.className = "cdx-button-settings";
+      this.settings.innerHTML = `
+        <div class="cdx-settings-group"><label>Text</label><input type="text" value="${this.data.text}" data-field="text" placeholder="Button label"></div>
+        <div class="cdx-settings-group"><label>URL</label><input type="text" value="${this.data.link}" data-field="link" placeholder="https://..."></div>
+        <div class="cdx-settings-group"><label>Text Color</label><input type="color" value="${this.data.textColor}" data-field="textColor"></div>
+        <div class="cdx-settings-group"><label>BG Color</label><input type="color" value="${this.data.bgColor}" data-field="bgColor"></div>
+        <div class="cdx-settings-group"><label>Radius</label><input type="text" value="${this.data.radius}" data-field="radius" placeholder="4px, 50%, etc."></div>
+      `;
+      this.wrapper.appendChild(this.settings);
+
+      // Bind live updates
+      this.settings.querySelectorAll("input").forEach((input) => {
+        input.addEventListener("input", (e) => {
+          this.data[e.target.dataset.field] = e.target.value;
+          if (e.target.dataset.field === "text")
+            this.previewBtn.textContent = e.target.value;
+          if (e.target.dataset.field === "link")
+            this.previewBtn.href = e.target.value;
+          if (e.target.dataset.field === "textColor")
+            this.previewBtn.style.color = e.target.value;
+          if (e.target.dataset.field === "bgColor")
+            this.previewBtn.style.backgroundColor = e.target.value;
+          if (e.target.dataset.field === "radius")
+            this.previewBtn.style.borderRadius = e.target.value;
+        });
       });
-      group.append(labelEl, input);
-      this.settingsContainer.appendChild(group);
-    });
-    this.wrapper.appendChild(this.settingsContainer);
+    }
+
     return this.wrapper;
   }
 
-  _applyStyles() {
-    const { text, link, textColor, bgColor, radius } = this.data;
-    this.previewBtn.textContent = text || "Button Text";
-    this.previewBtn.href = link || "#";
-    this.previewBtn.style.color = this._validateHex(textColor)
-      ? textColor
-      : "#ffffff";
-    this.previewBtn.style.backgroundColor = this._validateHex(bgColor)
-      ? bgColor
-      : "#007acc";
-    this.previewBtn.style.borderRadius = this._validateRadius(radius)
-      ? radius
-      : "4px";
-  }
-
-  _validateHex(hex) {
-    return /^#([0-9A-F]{3}){1,2}$/i.test(hex);
-  }
-
-  _validateRadius(val) {
-    return /^[\d]+(px|%|em|rem|vw|vh)?$/.test(val.trim());
-  }
-
-  save(blockContent) {
+  save() {
     return {
-      text: this.data.text.trim(),
-      link: this.data.link.trim(),
+      text: this.data.text,
+      link: this.data.link,
       textColor: this.data.textColor,
       bgColor: this.data.bgColor,
       radius: this.data.radius,
     };
-  }
-
-  validate(savedData) {
-    if (!savedData.text.trim()) return false;
-    if (!savedData.link.trim()) return false;
-    return true;
   }
 
   static get isReadOnlySupported() {

@@ -5,6 +5,16 @@ import ImageTool from "@editorjs/image";
 import List from "@editorjs/list";
 import Quote from "@editorjs/quote";
 
+import { CustomButtonBlock } from "./CustomButton.js";
+
+/**
+ * ColumnsBlock.js
+ * Editor.js Block to create a multi-column layout with nested Editor.js instances.
+ * Each column can contain any blocks, including CustomButtonBlock.
+ * Supports dynamic addition/removal of columns (up to 4) and live preview of nested content.
+ * Designed for maximum compatibility with Editor.js's native behaviors and toolbars.
+ */
+
 export class ColumnsBlock {
   constructor({ data, api, config }) {
     this.api = api;
@@ -81,6 +91,8 @@ export class ColumnsBlock {
       },
       list: { class: List, inlineToolbar: true },
       quote: { class: Quote, inlineToolbar: true },
+
+      "custom-button": { class: CustomButtonBlock, inlineToolbar: true },
     };
   }
 

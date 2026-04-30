@@ -6,7 +6,10 @@
 export class HtmlToEditorJs {
   convert(htmlString) {
     if (!htmlString || typeof htmlString !== "string") {
-      return { time: Date.now(), blocks: [] };
+      return {
+        time: Date.now(),
+        blocks: [],
+      };
     }
 
     // 1. Sanitize dangerous tags
@@ -30,7 +33,12 @@ export class HtmlToEditorJs {
       let html = tempDiv.innerHTML.replace(/\s+/g, " ").trim();
 
       if (html) {
-        blocks.push({ type: "paragraph", data: { text: html } });
+        blocks.push({
+          type: "paragraph",
+          data: {
+            text: html,
+          },
+        });
       }
       inlineBuffer = [];
     };
@@ -47,22 +55,63 @@ export class HtmlToEditorJs {
         } else if (child.nodeType === Node.ELEMENT_NODE) {
           const tag = child.tagName.toLowerCase();
 
-          // ✅ NEW: Handle WordPress Columns HTML structure
+          // ✅ NEW: Detect custom button wrapper or standalone link
+          if (
+            (tag === "a" &&
+              child.classList.contains("wp-block-custom-button")) ||
+            (tag === "div" &&
+              child.classList.contains("wp-block-custom-button-wrapper"))
+          ) {
+            if (inlineBuffer.length > 0) flushInlineBuffer();
+
+            const btn =
+              tag === "a"
+                ? child
+                : child.querySelector("a.wp-block-custom-button");
+            if (btn) {
+              const style = btn.getAttribute("style") || "";
+              const matchColor = style.match(/color:\s*([^;]+)/);
+              const matchBg = style.match(/background-color:\s*([^;]+)/);
+              const matchRadius = style.match(/border-radius:\s*([^;]+)/);
+
+              blocks.push({
+                type: "custom-button",
+                data: {
+                  text: btn.textContent.trim(),
+                  link: btn.href || "#",
+                  textColor: matchColor ? matchColor[1].trim() : "#ffffff",
+                  bgColor: matchBg ? matchBg[1].trim() : "#007acc",
+                  radius: matchRadius ? matchRadius[1].trim() : "4px",
+                },
+              });
+            }
+            continue; // Skip further processing for this node
+          }
+
+          // ✅ NEW: Detect WordPress Columns Block to prevent collapsing
           if (tag === "div" && child.classList.contains("wp-block-columns")) {
-            const columnsBlock = {
-              type: "columns",
-              data: { columnsCount: child.children.length, items: [] },
-            };
-            const columnDivs = child.querySelectorAll(
-              ":scope > .wp-block-column",
+            if (inlineBuffer.length > 0) flushInlineBuffer();
+
+            const columnDivs = Array.from(
+              child.querySelectorAll(".wp-block-column"),
             );
-            columnDivs.forEach((colDiv) => {
-              const subConverter = new HtmlToEditorJs();
-              const colBlocks = subConverter.convert(colDiv.innerHTML).blocks;
-              columnsBlock.data.items.push({ blocks: colBlocks });
-            });
-            blocks.push(columnsBlock);
-            continue; // Skip normal processing for this div
+            if (columnDivs.length > 0) {
+              const items = columnDivs.map((col) => {
+                // Recursive parse of inner column HTML
+                const innerParser = new HtmlToEditorJs();
+                const innerData = innerParser.convert(col.innerHTML);
+                return { blocks: innerData.blocks || [] };
+              });
+
+              blocks.push({
+                type: "columns",
+                data: {
+                  columnsCount: items.length,
+                  items: items,
+                },
+              });
+              continue; // Skip generic div handling
+            }
           }
 
           const isBlock = [
@@ -123,7 +172,13 @@ export class HtmlToEditorJs {
         case "p":
           // Direct innerHTML preserves exact inline spacing/formatting
           const pText = el.innerHTML.replace(/\s+/g, " ").trim();
-          if (pText) blocks.push({ type: "paragraph", data: { text: pText } });
+          if (pText)
+            blocks.push({
+              type: "paragraph",
+              data: {
+                text: pText,
+              },
+            });
           break;
 
         case "h1":
@@ -149,7 +204,10 @@ export class HtmlToEditorJs {
           if (items.length > 0) {
             blocks.push({
               type: "list",
-              data: { style: tag === "ol" ? "ordered" : "unordered", items },
+              data: {
+                style: tag === "ol" ? "ordered" : "unordered",
+                items,
+              },
             });
           }
           break;
@@ -175,7 +233,9 @@ export class HtmlToEditorJs {
           const code = el.querySelector("code");
           blocks.push({
             type: "code",
-            data: { code: code ? code.textContent : el.textContent },
+            data: {
+              code: code ? code.textContent : el.textContent,
+            },
           });
           break;
 
@@ -186,7 +246,10 @@ export class HtmlToEditorJs {
             blocks.push({
               type: "image",
               data: {
-                file: { url: img.src, id: null },
+                file: {
+                  url: img.src,
+                  id: null,
+                },
                 caption: caption ? caption.textContent.trim() : "",
                 withBorder: false,
                 withBackground: false,
@@ -197,7 +260,10 @@ export class HtmlToEditorJs {
           break;
 
         case "hr":
-          blocks.push({ type: "delimiter", data: {} });
+          blocks.push({
+            type: "delimiter",
+            data: {},
+          });
           break;
       }
     };
@@ -209,10 +275,18 @@ export class HtmlToEditorJs {
     if (blocks.length === 0) {
       const plainText = doc.body.textContent.replace(/\s+/g, " ").trim();
       if (plainText) {
-        blocks.push({ type: "paragraph", data: { text: plainText } });
+        blocks.push({
+          type: "paragraph",
+          data: {
+            text: plainText,
+          },
+        });
       }
     }
 
-    return { time: Date.now(), blocks };
+    return {
+      time: Date.now(),
+      blocks,
+    };
   }
 }

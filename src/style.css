@@ -1872,3 +1872,67 @@ RESPONSIVE COLUMN IMAGES
   transform: translateY(-1px);
   filter: brightness(1.05);
 }
+
+/* ====================================
+CUSTOM BUTTON EDITOR & PUBLISHED STYLES
+==================================== */
+.cdx-button-wrapper {
+  padding: 12px 0;
+}
+.cdx-button-preview:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+.cdx-button-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+.column-wrapper .cdx-button-settings {
+  grid-template-columns: 1fr;
+}
+.cdx-settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cdx-settings-group label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.cdx-settings-group input[type="text"] {
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 4px;
+  font-size: 12px;
+}
+.cdx-settings-group input[type="color"] {
+  width: 100%;
+  height: 32px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+}
+
+/* Published Output */
+.wp-block-custom-button-wrapper {
+  margin: 16px 0;
+}
+.wp-block-custom-button {
+  display: inline-block !important;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+.wp-block-custom-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
