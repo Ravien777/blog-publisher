@@ -15,6 +15,10 @@ import ColorPicker, { ColorPickerWithoutSanitize } from "editorjs-color-picker";
 
 import "./style.css";
 
+import { ColumnsBlock } from "./blocks/ColumnsBlock.js";
+import { CustomButtonBlock } from "./blocks/CustomButton.js";
+import { ButtonInlineTool } from "./tools/ButtonInlineTool.js";
+
 import { HtmlToEditorJs } from "./converters/HtmlToEditorJs.js";
 import { PostManager } from "./managers/PostManager.js";
 import { PageManager } from "./managers/PageManager.js";
@@ -31,6 +35,7 @@ const imageUploader = new ImageUploader(authManager);
 let editingPostId = null;
 let currentEditingType = "post"; // NEW: Tracks if we are editing a post or page
 let detectedSeoPlugin = null; // 'yoast', 'rank-math', or null
+let hasUnsavedChanges = false; // ✅ NEW: Tracks unsaved editor state
 
 // Security utility functions
 const securityUtils = {
@@ -292,17 +297,49 @@ function createPostManager() {
 }
 
 /**
- * Clear all sidebar form fields
- */
+Clear all sidebar form fields
+*/
 function clearSidebarFields() {
   const fields = ["postTitle", "postKeyword", "postExcerpt", "postSlug"];
   fields.forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
-
   const statusEl = document.getElementById("postStatus");
   if (statusEl) statusEl.value = "draft";
+}
+
+/**
+✅ NEW: Centralized editor & state reset
+Call after successful publish, update, cancel, or app exit
+*/
+function resetEditorState() {
+  if (!window.editorInstance) return;
+
+  // 1. Clear Editor.js safely (avoid race conditions)
+  window.editorInstance.clear();
+  setTimeout(() => {
+    window.editorInstance?.blocks.insert("paragraph", { text: "" });
+  }, 50);
+
+  // 2. Reset module-level tracking variables
+  editingPostId = null;
+  currentEditingType = "post";
+  updateEditModeUI(false);
+  updateContentTypeIndicator("post");
+  updateSidebarPostLink(null);
+
+  // 3. Clear sidebar fields & draft storage
+  clearSidebarFields();
+  if (window.pendingUploads) window.pendingUploads.clear();
+  localStorage.removeItem("editorjs-content");
+
+  // 4. Reset featured image input
+  const featInput = document.getElementById("featuredImageUpload");
+  if (featInput) featInput.value = "";
+
+  // 5. Clear dirty flag
+  hasUnsavedChanges = false;
 }
 
 /**
@@ -453,11 +490,54 @@ async function convertEditorJsToHTML(jsonData) {
               }
             }
 
+            // ✅ Added style="width: 100%; height: auto; max-width: 100%;"
             html += `<figure class="wp-block-image">
-              <img src="${cleanUrl}" alt="${alt}" ${srcset} sizes="(max-width: 768px) 100vw, 1200px" loading="lazy" />
+              <img src="${cleanUrl}" alt="${alt}" ${srcset} sizes="(max-width: 768px) 100vw, 1200px" loading="lazy" style="width: 100%; height: auto; max-width: 100%;" />
               ${caption ? `<figcaption>${caption}</figcaption>` : ""}
             </figure>`;
           }
+          break;
+
+        case "columns":
+          if (block.data?.items?.length) {
+            let colsHtml = "";
+            for (const col of block.data.items) {
+              if (col.blocks && col.blocks.length > 0) {
+                // ✅ Properly await recursive async call to prevent [object Promise]
+                const colContent = await convertEditorJsToHTML({
+                  blocks: col.blocks,
+                });
+                colsHtml += `<div class="wp-block-column">${colContent}</div>`;
+              } else {
+                colsHtml += `<div class="wp-block-column"></div>`;
+              }
+            }
+            html += `<div class="wp-block-columns">${colsHtml}</div>`;
+          }
+          break;
+
+        case "custom-button":
+          const btnText = securityUtils.escapeHtml(
+            block.data?.text || "Button",
+          );
+          const btnLink = securityUtils.sanitizeUrl(block.data?.link || "#");
+          const txtColor = this._validateHex(block.data?.textColor)
+            ? block.data.textColor
+            : "#ffffff";
+          const bgColor = this._validateHex(block.data?.bgColor)
+            ? block.data.bgColor
+            : "#007acc";
+          const radius = this._validateRadius(block.data?.radius)
+            ? block.data.radius
+            : "4px";
+
+          html += `<a class="wp-block-custom-button" 
+            href="${btnLink}" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            style="display:inline-block; color:${txtColor}; background-color:${bgColor}; border-radius:${radius}; padding:10px 20px; text-decoration:none; font-weight:600; text-align:center;">
+            ${btnText}
+           </a>`;
           break;
 
         case "list":
@@ -832,6 +912,15 @@ async function initializeEditor() {
           class: ColorPickerWithoutSanitize,
           inlineToolbar: true,
         },
+        columns: {
+          class: ColumnsBlock, // Custom block defined in ./blocks/ColumnsBlock.js
+          inlineToolbar: true,
+        },
+        "custom-button": {
+          class: CustomButtonBlock,
+          inlineToolbar: true,
+        },
+        "button-inline": ButtonInlineTool,
         list: {
           class: List,
           inlineToolbar: true,
@@ -871,6 +960,8 @@ async function initializeEditor() {
 
       // UPDATED: onChange with word count AND SEO
       onChange: debounce(() => {
+        hasUnsavedChanges = true; // Set dirty flag on any change
+
         editor
           .save()
           .then((outputData) => {
@@ -1965,6 +2056,10 @@ function setupEventHandlers(editor) {
         }
 
         saveToLocalStorage(updatedData);
+
+        // ✅ NEW: Clear editor & reset state after successful publish/update
+        resetEditorState();
+
         window.featuredImageFile = null;
         const featInput = document.getElementById("featuredImageUpload");
         if (featInput) featInput.value = "";
@@ -2071,6 +2166,16 @@ function updateNetworkStatus() {
 window.addEventListener("online", updateNetworkStatus);
 window.addEventListener("offline", updateNetworkStatus);
 updateNetworkStatus(); // Init
+
+// ✅ NEW: Handle app/window close with unsaved guard
+// window.addEventListener("beforeunload", (e) => {
+//   if (hasUnsavedChanges) {
+//     e.preventDefault();
+//     e.returnValue = "You have unsaved changes. Are you sure you want to leave?";
+//   } else {
+//     resetEditorState();
+//   }
+// });
 
 // Main Initialization
 document.addEventListener("DOMContentLoaded", () => {

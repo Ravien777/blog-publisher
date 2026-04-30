@@ -46,6 +46,25 @@ export class HtmlToEditorJs {
           }
         } else if (child.nodeType === Node.ELEMENT_NODE) {
           const tag = child.tagName.toLowerCase();
+
+          // ✅ NEW: Handle WordPress Columns HTML structure
+          if (tag === "div" && child.classList.contains("wp-block-columns")) {
+            const columnsBlock = {
+              type: "columns",
+              data: { columnsCount: child.children.length, items: [] },
+            };
+            const columnDivs = child.querySelectorAll(
+              ":scope > .wp-block-column",
+            );
+            columnDivs.forEach((colDiv) => {
+              const subConverter = new HtmlToEditorJs();
+              const colBlocks = subConverter.convert(colDiv.innerHTML).blocks;
+              columnsBlock.data.items.push({ blocks: colBlocks });
+            });
+            blocks.push(columnsBlock);
+            continue; // Skip normal processing for this div
+          }
+
           const isBlock = [
             "p",
             "h1",

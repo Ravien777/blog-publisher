@@ -38,52 +38,54 @@ export class ImageUploader {
   async uploadPendingImages(editorData) {
     if (!window.pendingUploads || window.pendingUploads.size === 0)
       return editorData;
-    const token = this.authManager.getToken();
+
+    const token = tokenManagerMultiSite.getToken();
     if (!token) throw new Error("Authentication required");
-    const config = this.authManager.getActiveConfig();
+    const config = getActiveConfig();
     const updatedData = JSON.parse(JSON.stringify(editorData));
 
-    for (let i = 0; i < updatedData.blocks.length; i++) {
-      const block = updatedData.blocks[i];
+    // Recursive helper to find and upload pending images anywhere in the block tree
+    const uploadInBlock = async (block) => {
       if (block.type === "image" && block.data?.file?.pending) {
         const fileId = block.data.file.id;
         const file = window.pendingUploads.get(fileId);
         if (file) {
           try {
-            console.log(
-              `Uploading image to ${config.WORDPRESS_SITE_URL}: ${file.name}`,
-            );
             const formData = new FormData();
             formData.append("file", file);
-            const uploadResponse = await fetch(
-              `${config.WORDPRESS_API}/media`,
-              {
-                method: "POST",
-                headers: { Authorization: `Basic ${token}` },
-                body: formData,
-              },
-            );
-            if (!uploadResponse.ok) {
-              const errorText = await uploadResponse.text();
-              throw new Error(
-                `Upload failed: ${uploadResponse.status} - ${errorText}`,
-              );
-            }
-            const mediaData = await uploadResponse.json();
+            const res = await fetch(`${config.WORDPRESS_API}/media`, {
+              method: "POST",
+              headers: { Authorization: `Basic ${token}` },
+              body: formData,
+            });
+            if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+            const media = await res.json();
             block.data.file = {
-              url: mediaData.source_url,
-              id: mediaData.id,
+              url: media.source_url,
+              id: media.id,
               pending: false,
-              sizes: mediaData.media_details?.sizes || {},
+              sizes: media.media_details?.sizes || {},
             };
             window.pendingUploads.delete(fileId);
-            console.log(`Image uploaded successfully: ${mediaData.source_url}`);
-          } catch (error) {
-            console.error(`Failed to upload image ${fileId}:`, error);
-            throw new Error(`Failed to upload image: ${error.message}`);
+          } catch (err) {
+            console.error("Nested image upload failed:", err);
           }
         }
       }
+      // Recurse into columns
+      if (block.type === "columns" && block.data?.items) {
+        for (const col of block.data.items) {
+          if (col.blocks) {
+            for (const nested of col.blocks) {
+              await uploadInBlock(nested);
+            }
+          }
+        }
+      }
+    };
+
+    for (const block of updatedData.blocks) {
+      await uploadInBlock(block);
     }
     return updatedData;
   }

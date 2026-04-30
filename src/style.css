@@ -1684,3 +1684,191 @@ SIDEBAR POST LINK WIDGET
 .copy-link-btn.copied {
   color: var(--success);
 }
+
+/* ====================================
+COLUMNS BLOCK (FIXED LAYOUT & EVENTS)
+==================================== */
+.ce-toolbar.ce-toolbar--opened {
+  z-index: 9999 !important;
+}
+
+.columns-container {
+  display: flex;
+  flex-wrap: wrap;
+  /* ✅ Replace gap with margin to fix Editor.js position math */
+  margin: 16px 0 -20px 0;
+  position: relative;
+  z-index: 1;
+}
+
+.column-wrapper {
+  flex: 1;
+  min-width: 250px;
+  min-height: 120px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  position: relative;
+  transition: border-color 0.2s;
+  /* ✅ Use margin instead of gap for safe flex layout */
+  margin-right: 20px;
+  margin-bottom: 20px;
+  z-index: 2;
+}
+.column-wrapper:last-child {
+  margin-right: 0;
+}
+.column-wrapper:focus-within {
+  border-color: var(--accent-color);
+  border-style: solid;
+}
+
+.column-editor-holder {
+  min-height: 100%;
+  position: relative;
+  z-index: 3;
+}
+
+/* ✅ Fix Toolbar Overlap & Position Drift */
+.column-editor-holder .codex-editor {
+  padding: 0 !important;
+  background: transparent !important;
+}
+.column-editor-holder .ce-toolbar {
+  position: relative !important; /* Prevents absolute drift */
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  z-index: 100 !important; /* Lower than main editor toolbar (1000+) */
+  padding: 4px 0 !important;
+  pointer-events: auto !important;
+}
+
+/* ✅ Fix Popover Positioning & Click-Away Close */
+.column-editor-holder .ce-popover {
+  position: absolute !important;
+  z-index: 9999 !important;
+  max-width: 250px !important; /* Prevents right-side overflow */
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* ✅ Hide settings gear, keep functional + button */
+.column-editor-holder .ce-toolbar__settings-btn {
+  display: none !important;
+}
+.column-editor-holder .ce-toolbar__plus {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-muted) !important;
+  margin: 4px 0 0 4px !important;
+  pointer-events: auto !important;
+}
+.column-editor-holder .ce-toolbar__plus:hover {
+  background: var(--bg-secondary) !important;
+  color: var(--accent-color) !important;
+}
+
+/* ✅ Nested content styling */
+.column-editor-holder .ce-block__content,
+.column-editor-holder .ce-toolbar__content {
+  max-width: 100% !important;
+  padding: 0 4px !important;
+}
+.column-editor-holder .ce-paragraph {
+  color: var(--text-primary) !important;
+  min-height: 20px;
+}
+
+/* ✅ Responsive fallback */
+@media (max-width: 768px) {
+  .columns-container {
+    flex-direction: column;
+  }
+  .column-wrapper {
+    width: 100%;
+    margin-right: 0;
+    min-width: 100%;
+  }
+}
+
+/* ====================================
+RESPONSIVE COLUMN IMAGES
+==================================== */
+.wp-block-column img,
+.wp-block-image img,
+.column-editor-holder img {
+  width: 100% !important;
+  height: auto !important;
+  max-width: 100% !important;
+  object-fit: cover;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Prevent column layout breaking on small screens */
+.wp-block-columns {
+  flex-wrap: wrap !important;
+}
+
+/* Editor Preview */
+.cdx-button-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+.cdx-button-preview {
+  display: inline-block;
+  padding: 10px 20px;
+  text-decoration: none;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  max-width: 100%;
+  word-break: break-word;
+}
+.cdx-button-preview:hover {
+  opacity: 0.9;
+}
+
+.cdx-button-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: var(--bg-tertiary);
+  padding: 12px;
+  border-radius: 6px;
+}
+.cdx-settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cdx-settings-group label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.cdx-settings-group input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* Published Output */
+.wp-block-custom-button {
+  display: inline-block;
+  padding: 10px 20px;
+  text-decoration: none !important;
+  font-weight: 600;
+  text-align: center;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+.wp-block-custom-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
