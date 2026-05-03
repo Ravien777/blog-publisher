@@ -1,6 +1,6 @@
 /**
  * src/blocks/CustomButton.js
- * Custom Editor.js block for fully configurable buttons.
+ * Custom Editor.js block for fully configurable buttons with collapsible settings.
  */
 export class CustomButtonBlock {
   static get toolbox() {
@@ -26,7 +26,7 @@ export class CustomButtonBlock {
     this.wrapper = document.createElement("div");
     this.wrapper.classList.add("cdx-button-wrapper");
 
-    // Create live preview link
+    // Live preview link
     this.previewBtn = document.createElement("a");
     this.previewBtn.className = "cdx-button-preview";
     this.previewBtn.target = "_blank";
@@ -41,11 +41,10 @@ export class CustomButtonBlock {
     this.previewBtn.style.textDecoration = "none";
     this.previewBtn.style.fontWeight = "600";
     this.previewBtn.style.transition = "all 0.2s";
-
     this.wrapper.appendChild(this.previewBtn);
 
     if (!this.readOnly) {
-      // Settings panel (only in editor mode)
+      // Settings panel
       this.settings = document.createElement("div");
       this.settings.className = "cdx-button-settings";
       this.settings.innerHTML = `
@@ -55,7 +54,6 @@ export class CustomButtonBlock {
         <div class="cdx-settings-group"><label>BG Color</label><input type="color" value="${this.data.bgColor}" data-field="bgColor"></div>
         <div class="cdx-settings-group"><label>Radius</label><input type="text" value="${this.data.radius}" data-field="radius" placeholder="4px, 50%, etc."></div>
       `;
-      this.wrapper.appendChild(this.settings);
 
       // Bind live updates
       this.settings.querySelectorAll("input").forEach((input) => {
@@ -73,6 +71,30 @@ export class CustomButtonBlock {
             this.previewBtn.style.borderRadius = e.target.value;
         });
       });
+
+      // Collapsible wrapper
+      const configContainer = document.createElement("div");
+      configContainer.className = "cdx-button-config-container";
+
+      const toggleBtn = document.createElement("button");
+      toggleBtn.className = "cdx-button-config-toggle";
+      toggleBtn.innerHTML = `<span><i class="fas fa-sliders-h"></i> Configure</span><i class="fas fa-chevron-down"></i>`;
+
+      toggleBtn.addEventListener("click", () => {
+        const isVisible = this.settings.style.display !== "none";
+        this.settings.style.display = isVisible ? "none" : "grid";
+        toggleBtn.classList.toggle("active", !isVisible);
+        toggleBtn.querySelector("i:last-child").style.transform = isVisible
+          ? ""
+          : "rotate(180deg)";
+      });
+
+      configContainer.appendChild(toggleBtn);
+      configContainer.appendChild(this.settings);
+
+      // Default to collapsed
+      this.settings.style.display = "none";
+      this.wrapper.appendChild(configContainer);
     }
 
     return this.wrapper;

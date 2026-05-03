@@ -1936,3 +1936,68 @@ CUSTOM BUTTON EDITOR & PUBLISHED STYLES
   transform: translateY(-1px);
   filter: brightness(1.05);
 }
+
+/* Collapsible Button Config */
+.cdx-button-config-container {
+  margin-top: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+.cdx-button-config-toggle {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.2s;
+}
+.cdx-button-config-toggle:hover {
+  background: var(--bg-secondary);
+}
+.cdx-button-config-toggle i:last-child {
+  transition: transform 0.2s;
+}
+
+/* Block Background Tune UI */
+.block-bg-tune {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.bg-tune-reset {
+  background: var(--danger);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+}
+.bg-tune-reset:hover {
+  opacity: 0.85;
+}
+
+/* Published Output Wrapper */
+.wp-block-bg-wrapper {
+  margin-bottom: 16px;
+}
+.wp-block-bg-wrapper > *:first-child {
+  margin-top: 0;
+}
+.wp-block-bg-wrapper > *:last-child {
+  margin-bottom: 0;
+}

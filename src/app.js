@@ -156,7 +156,7 @@ const securityUtils = {
     if (!dataUrl.startsWith("data:image/")) return false;
     const regex =
       /^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/]+=*$/;
-    return regex.test(dataUrl.split(",")[0]);
+    return regex.test(dataUrl);
   },
 };
 
@@ -368,6 +368,7 @@ function createNewPost(type = "post") {
   updateSidebarPostLink(null); // ✅ NEW: Clear permalink for new drafts
   localStorage.removeItem("editorjs-content");
   updateEditModeUI(false);
+  updatePageOptionsVisibility();
 
   // Switch to editor view
   switchView("editor");
@@ -657,6 +658,13 @@ async function postToWordPress(
           description: postData.yoast.metaDescription,
         };
       }
+    }
+
+    if (postData.pageMeta) {
+      payload.meta = {
+        ...payload.meta,
+        ...postData.pageMeta,
+      };
     }
 
     // Determine correct endpoint based on content type
@@ -988,6 +996,9 @@ async function initializeEditor() {
         // Create word count display
         createWordCountDisplay();
 
+        // Create page options section
+        createPageOptionsSection();
+
         // Create post link widget
         createPostLinkWidget();
 
@@ -1155,12 +1166,31 @@ async function loadPostIntoEditor(post) {
       ).trim();
     }
 
-    // 6. Activate edit mode UI & switch view
+    // ✅ NEW: Load Page Options (Check meta values for "1" or true)
+    if (currentEditingType === "page") {
+      const section = document.getElementById("page-options-section");
+      const seaInput = document.getElementById("seaPageToggle");
+      const fullWidthInput = document.getElementById("fullWidthToggle");
+
+      if (section) section.style.display = "block";
+
+      if (seaInput) {
+        seaInput.checked =
+          post.meta._is_sea_page == 1 || post.meta._is_sea_page === "1";
+      }
+      if (fullWidthInput) {
+        fullWidthInput.checked =
+          post.meta._full_width_page == 1 || post.meta._full_width_page === "1";
+      }
+    }
+    updatePageOptionsVisibility();
+
+    // 7. Activate edit mode UI & switch view
     editingPostId = post.id;
     updateEditModeUI(true);
     switchView("editor");
 
-    // 7. Trigger SEO/Word count update after DOM settles
+    // 8. Trigger SEO/Word count update after DOM settles
     setTimeout(() => {
       if (window.editorInstance) {
         window.editorInstance.save().then((data) => {
@@ -1558,6 +1588,43 @@ function updateSidebarPostLink(url) {
   }
 }
 
+/**
+ * Injects Page Options (SEA & Full-Width toggles) into the sidebar.
+ * Visibility is dynamically controlled based on post/page type.
+ */
+function createPageOptionsSection() {
+  const sidebar = document.getElementById("sidebar-post-config");
+  if (!sidebar || document.getElementById("page-options-section")) return;
+
+  const section = document.createElement("div");
+  section.className = "config-section";
+  section.id = "page-options-section";
+  section.style.display = "none"; // Hidden by default
+
+  section.innerHTML = `
+    <h3>Page Options</h3>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="seaPageToggle"> SEA Landing Page
+      </label>
+      <small style="color:var(--text-muted);font-size:10px;">Triggers custom CSS via WP Code</small>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="fullWidthToggle"> Full-Width Layout
+      </label>
+      <small style="color:var(--text-muted);font-size:10px;">Removes sidebar via theme template</small>
+    </div>
+  `;
+  sidebar.appendChild(section);
+}
+
+function updatePageOptionsVisibility() {
+  const section = document.getElementById("page-options-section");
+  if (!section) return;
+  section.style.display = currentEditingType === "page" ? "block" : "none";
+}
+
 // Create site switcher UI (delegated to AuthManager)
 function createSiteSwitcher() {
   authManager.createSiteSwitcher();
@@ -1710,8 +1777,10 @@ const seoAnalyzer = {
   countKeywordOccurrences: (text, keyword) => {
     if (!keyword) return 0;
     const lowerText = text.toLowerCase();
-    const lowerKeyword = keyword.toLowerCase();
-    const regex = new RegExp(`\\b${lowerKeyword}\\b`, "gi");
+    const escapedKeyword = keyword
+      .toLowerCase()
+      .replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
+    const regex = new RegExp(`\\b${escapedKeyword}\\b`, "gi");
     const matches = lowerText.match(regex);
     return matches ? matches.length : 0;
   },
@@ -1903,7 +1972,7 @@ function updateWordCountWithSEO(stats, seoScore) {
 function setupEventHandlers(editor) {
   // Featured Image Upload Handler - Now just stores the file for later
   const featuredImageInput = document.getElementById("featuredImageUpload");
-  let featuredImageFile = null;
+  window.featuredImageFile = null;
 
   if (featuredImageInput) {
     featuredImageInput.addEventListener("change", function (e) {
@@ -1911,7 +1980,7 @@ function setupEventHandlers(editor) {
       if (!file) return;
 
       // Store the file for later upload during save
-      featuredImageFile = file;
+      window.featuredImageFile = file;
 
       console.log("Featured image selected, will upload on save:", file.name);
     });
@@ -1995,17 +2064,29 @@ function setupEventHandlers(editor) {
           featured_media: featuredImageId || 0,
         };
 
-        // Add Yoast/SEO meta if provided
-        if (keyword || excerpt) {
-          payload.meta = {};
-          if (keyword) {
-            payload.meta._yoast_wpseo_focuskw = keyword;
-            payload.meta.rank_math_focus_keyword = keyword;
-          }
-          if (excerpt) {
-            payload.meta._yoast_wpseo_metadesc = excerpt;
-            payload.meta._yoast_wpseo_title = title;
-          }
+        payload.meta = payload.meta || {}; // Ensure meta object exists
+
+        if (keyword) {
+          payload.meta._yoast_wpseo_focuskw = keyword;
+          payload.meta.rank_math_focus_keyword = keyword;
+        }
+        if (excerpt) {
+          payload.meta._yoast_wpseo_metadesc = excerpt;
+          payload.meta._yoast_wpseo_title = title;
+        }
+
+        // ✅ NEW: Capture Page Options
+        if (currentEditingType === "page") {
+          payload.meta = {
+            ...(payload.meta || {}),
+            _is_sea_page: document.getElementById("seaPageToggle")?.checked
+              ? 1
+              : 0,
+            _full_width_page: document.getElementById("fullWidthToggle")
+              ?.checked
+              ? 1
+              : 0,
+          };
         }
 
         // 5. API Call (WP REST uses POST for both create & update)
@@ -2042,15 +2123,6 @@ function setupEventHandlers(editor) {
         );
 
         // If it was a new item, lock to edit mode & persist type
-        if (!isUpdate) {
-          editingPostId = result.id;
-          currentEditingType = isPage ? "page" : "post";
-          updateEditModeUI(true);
-          updateContentTypeIndicator(currentEditingType);
-        }
-
-        saveToLocalStorage(updatedData);
-
         // ✅ NEW: Clear editor & reset state after successful publish/update
         resetEditorState();
 
@@ -2089,7 +2161,7 @@ function setupEventHandlers(editor) {
       localStorage.removeItem("editorjs-content");
 
       // Also clear featured image
-      featuredImageFile = null;
+      window.featuredImageFile = null;
       if (featuredImageInput) {
         featuredImageInput.value = "";
       }
