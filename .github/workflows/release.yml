@@ -1,0 +1,35 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*" # Triggers on tags like v1.0.0, v1.1.0, etc.
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build & Publish
+        run: npx electron-builder --publish always
+        env:
+          # GitHub automatically provides this token for Actions
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Skip macOS codesigning in CI (requires Apple certificates)
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Skip Windows signing in CI (requires .pfx cert)
+          WIN_CSC_LINK: ""
+          WIN_CSC_KEY_PASSWORD: ""

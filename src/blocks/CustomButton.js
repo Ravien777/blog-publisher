@@ -19,6 +19,7 @@ export class CustomButtonBlock {
       textColor: data.textColor || "#ffffff",
       bgColor: data.bgColor || "#007acc",
       radius: data.radius || "4px",
+      width: data.width || "auto",
     };
   }
 
@@ -36,6 +37,7 @@ export class CustomButtonBlock {
     this.previewBtn.style.color = this.data.textColor;
     this.previewBtn.style.backgroundColor = this.data.bgColor;
     this.previewBtn.style.borderRadius = this.data.radius;
+    this.previewBtn.style.width = this.data.width;
     this.previewBtn.style.padding = "10px 20px";
     this.previewBtn.style.display = "inline-block";
     this.previewBtn.style.textDecoration = "none";
@@ -53,6 +55,7 @@ export class CustomButtonBlock {
         <div class="cdx-settings-group"><label>Text Color</label><input type="color" value="${this.data.textColor}" data-field="textColor"></div>
         <div class="cdx-settings-group"><label>BG Color</label><input type="color" value="${this.data.bgColor}" data-field="bgColor"></div>
         <div class="cdx-settings-group"><label>Radius</label><input type="text" value="${this.data.radius}" data-field="radius" placeholder="4px, 50%, etc."></div>
+        <div class="cdx-settings-group"><label>Width</label><input type="text" value="${this.data.width}" data-field="width" placeholder="200px, 100%, auto"></div>
       `;
 
       // Bind live updates
@@ -69,6 +72,8 @@ export class CustomButtonBlock {
             this.previewBtn.style.backgroundColor = e.target.value;
           if (e.target.dataset.field === "radius")
             this.previewBtn.style.borderRadius = e.target.value;
+          if (e.target.dataset.field === "width")
+            this.previewBtn.style.width = e.target.value;
         });
       });
 
@@ -104,6 +109,7 @@ export class CustomButtonBlock {
     return {
       text: this.data.text,
       link: this.data.link,
+      width: this.data.width,
       textColor: this.data.textColor,
       bgColor: this.data.bgColor,
       radius: this.data.radius,

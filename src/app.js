@@ -17,9 +17,11 @@ import "./style.css";
 
 import { ColumnsBlock } from "./blocks/ColumnsBlock.js";
 import { CustomButtonBlock } from "./blocks/CustomButton.js";
+import { ContactFormBlock } from "./blocks/ContactFormBlock.js";
 import { ButtonInlineTool } from "./tools/ButtonInlineTool.js";
 
 import { HtmlToEditorJs } from "./converters/HtmlToEditorJs.js";
+import { FormProvider } from "./services/FormProvider.js";
 import { PostManager } from "./managers/PostManager.js";
 import { PageManager } from "./managers/PageManager.js";
 import { LibraryView } from "./components/LibraryView.js";
@@ -531,8 +533,15 @@ async function convertEditorJsToHTML(jsonData) {
           const radius = /^[\d]+(px|%|em|rem)?$/.test(block.data?.radius)
             ? block.data.radius
             : "4px";
+          const width = block.data?.width || "auto";
 
-          html += `<div class="wp-block-custom-button-wrapper"><a class="wp-block-custom-button" href="${btnLink}" target="_blank" rel="noopener" style="display:inline-block; color:${txtColor}; background-color:${bgColor}; border-radius:${radius}; padding:10px 20px; text-decoration:none; font-weight:600; text-align:center;">${btnText}</a></div>`;
+          html += `<div class="wp-block-custom-button-wrapper"><a class="wp-block-custom-button" href="${btnLink}" target="_blank" rel="noopener" style="display:inline-block; color:${txtColor}; background-color:${bgColor}; border-radius:${radius}; width:${width}; padding:10px 20px; text-decoration:none; font-weight:600; text-align:center;">${btnText}</a></div>`;
+          break;
+
+        case "contact-form":
+          if (block.data?.formId && block.data?.plugin) {
+            html += `<div class="wp-block-contact-form">${window.formProvider?.getShortcode(block.data.formId) || ""}</div>`;
+          }
           break;
 
         case "list":
@@ -814,6 +823,13 @@ async function initializeEditor() {
         console.log(`✅ SEO plugin detected: ${plugin || "none"}`);
       });
 
+      // Initialize FormProvider for contact form detection
+      window.formProvider = new FormProvider(config.WORDPRESS_API, token);
+      // Pre‑fetch the form list silently
+      window.formProvider
+        .detect()
+        .catch((e) => console.warn("Form detection failed:", e));
+
       // Non-blocking cache pre-fetch
       setTimeout(async () => {
         try {
@@ -921,6 +937,12 @@ async function initializeEditor() {
         "custom-button": {
           class: CustomButtonBlock,
           inlineToolbar: true,
+        },
+        "contact-form": {
+          class: ContactFormBlock,
+          config: {
+            formProvider: window.formProvider,
+          },
         },
         "button-inline": ButtonInlineTool,
         list: {
@@ -1168,6 +1190,11 @@ async function loadPostIntoEditor(post) {
 
     // ✅ NEW: Load Page Options (Check meta values for "1" or true)
     if (currentEditingType === "page") {
+      console.log(
+        "Current editing type: Page. Checking page options meta:",
+        post.meta,
+      );
+
       const section = document.getElementById("page-options-section");
       const seaInput = document.getElementById("seaPageToggle");
       const fullWidthInput = document.getElementById("fullWidthToggle");
@@ -2098,6 +2125,8 @@ function setupEventHandlers(editor) {
         const targetUrl = editingPostId
           ? `${baseEndpoint}/${editingPostId}`
           : baseEndpoint;
+
+        console.log("Publishing payload:", JSON.stringify(payload, null, 2));
 
         const response = await fetch(targetUrl, {
           method: "POST",
