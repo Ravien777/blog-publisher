@@ -48,10 +48,9 @@ app.whenReady().then(() => {
   });
 
   autoUpdater.on("error", (err) => {
-    BrowserWindow.getAllWindows()[0]?.webContents.send(
-      "update-error",
-      err.message,
-    );
+    // Guarantee a plain string is sent over IPC
+    const safeMsg = err?.message || err?.toString() || String(err);
+    BrowserWindow.getAllWindows()[0]?.webContents.send("update-error", safeMsg);
   });
 
   // Initial check (optional)

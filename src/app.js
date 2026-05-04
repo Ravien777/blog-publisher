@@ -2313,8 +2313,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Listen for errors
     window.electronAPI.onUpdateError((error) => {
-      console.error("Update error:", error);
-      showToast(`⚠️ Update failed: ${error}`, "warning");
+      const msg =
+        typeof error === "string"
+          ? error
+          : error?.message || JSON.stringify(error);
+
+      console.warn("⚠️ Auto-update blocked:", msg);
+      showToast(`⚠️ Update failed: ${msg}`, "warning");
     });
 
     // Optional: Check for updates on load
