@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write # Required to create GitHub Releases
+  contents: write
 
 jobs:
   build:
@@ -26,12 +26,11 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Build & Publish
+      - name: Build production webpack
+        run: npm run dist
+
+      - name: Build & Publish electron app
         run: npx electron-builder --publish always
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # ✅ Skip macOS signing in CI
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-          # ❌ REMOVE THESE LINES (they cause the error):
-          # WIN_CSC_LINK: ""
-          # WIN_CSC_KEY_PASSWORD: ""
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false # skip macOS signing
