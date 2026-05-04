@@ -213,7 +213,7 @@ export class PostManager {
   }
 
   /**
-   * Secure fetch wrapper with structured error handling
+   * Secure fetch wrapper with structured error handling.
    * @private
    */
   async safeFetch(url, options) {
