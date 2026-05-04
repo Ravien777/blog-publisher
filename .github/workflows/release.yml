@@ -5,8 +5,8 @@ on:
     tags:
       - "v*"
 
-permissions: # ✅ CRITICAL: Grant write access to create releases
-  contents: write
+permissions:
+  contents: write # Required to create GitHub Releases
 
 jobs:
   build:
@@ -30,6 +30,8 @@ jobs:
         run: npx electron-builder --publish always
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ✅ Skip macOS signing in CI
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          WIN_CSC_LINK: ""
-          WIN_CSC_KEY_PASSWORD: ""
+          # ❌ REMOVE THESE LINES (they cause the error):
+          # WIN_CSC_LINK: ""
+          # WIN_CSC_KEY_PASSWORD: ""
