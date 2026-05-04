@@ -5,12 +5,12 @@ const path = require("path");
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1200,
+    width: 1000,
     height: 700,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, "preload.js"), // ✅ Load preload script
+      preload: path.join(__dirname, "preload.js"), // ✅ REQUIRED
     },
   });
 
@@ -21,24 +21,24 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
 
-  // Configure auto-updater
+  // 🔧 Enable debug logging (remove in production)
+  autoUpdater.logger = require("electron-log");
+  autoUpdater.logger.transports.file.level = "debug";
+
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  // IPC: Send version to renderer
-  ipcMain.handle("get-app-version", () => app.getVersion());
-
-  // IPC: Trigger update check
+  // IPC: Renderer triggers check
   ipcMain.on("check-for-updates", () => {
     autoUpdater.checkForUpdatesAndNotify();
   });
 
-  // IPC: Restart app after update
+  // IPC: Restart after download
   ipcMain.on("restart-app", () => {
     autoUpdater.quitAndInstall();
   });
 
-  // Forward auto-updater events to renderer
+  // Forward updater events to renderer
   autoUpdater.on("update-available", () => {
     BrowserWindow.getAllWindows()[0]?.webContents.send("update-available");
   });
@@ -48,12 +48,11 @@ app.whenReady().then(() => {
   });
 
   autoUpdater.on("error", (err) => {
-    // Guarantee a plain string is sent over IPC
-    const safeMsg = err?.message || err?.toString() || String(err);
+    const safeMsg = err?.message || err?.toString() || "Unknown update error";
     BrowserWindow.getAllWindows()[0]?.webContents.send("update-error", safeMsg);
   });
 
-  // Initial check (optional)
+  // ✅ Initial check on app launch
   autoUpdater.checkForUpdatesAndNotify();
 });
 

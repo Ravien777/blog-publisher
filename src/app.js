@@ -2316,7 +2316,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const msg =
         typeof error === "string"
           ? error
-          : error?.message || JSON.stringify(error);
+          : error?.message || JSON.stringify(error) || "Unknown error";
 
       console.warn("⚠️ Auto-update blocked:", msg);
       showToast(`⚠️ Update failed: ${msg}`, "warning");
