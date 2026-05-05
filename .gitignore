@@ -1,7 +1,6 @@
 # Build outputs
 release/
 dist/
-build/
 *.AppImage
 *.dmg
 *.exe
