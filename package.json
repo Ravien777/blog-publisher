@@ -35,7 +35,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "perMachine": false
+      "perMachine": false,
+      "publisherName": "Tasfinity"
     },
     "directories": {
       "output": "release",
@@ -60,10 +61,7 @@
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.ico",
-      "publisherName": [
-        "Tasfinity"
-      ]
+      "icon": "build/icon.ico"
     },
     "mac": {
       "target": [
@@ -73,9 +71,7 @@
       "icon": "build/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "notarize": {
-        "teamId": "YOUR_TEAM_ID"
-      }
+      "notarize": false
     }
   },
   "dependencies": {
