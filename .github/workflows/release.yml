@@ -8,8 +8,12 @@ permissions:
   contents: write
 
 jobs:
-  build-and-publish:
-    runs-on: ubuntu-latest # single OS, builds for all platforms
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -24,7 +28,40 @@ jobs:
       - name: Build production webpack
         run: npm run dist
 
-      - name: Build & Publish electron app (all platforms)
-        run: npx electron-builder --publish always --win --linux
+      - name: Build electron app (no publish)
+        run: npx electron-builder --dir
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/*.yml
+            release/*.AppImage
+            release/*.dmg
+          if-no-files-found: ignore
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+
+      - name: Publish release
+        run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

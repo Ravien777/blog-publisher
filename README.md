@@ -46,7 +46,7 @@ npm run dev
 To run the Electron app after rebuilding in development mode:
 
 ```bash
-npm start
+npm run start
 ```
 
 ### Build for Production
