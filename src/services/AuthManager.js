@@ -98,7 +98,7 @@ export class AuthManager {
     const activeSite = this.getActiveSite();
     if (activeSite) {
       return {
-        WORDPRESS_API: `${activeSite.url}/wp-json/wp/v2`,
+        WORDPRESS_API: `${activeSite.url}/wp-json`,
         WORDPRESS_SITE_URL: activeSite.url,
         MAX_IMAGE_SIZE: 5242880,
         ALLOWED_IMAGE_TYPES: [
@@ -110,7 +110,7 @@ export class AuthManager {
       };
     }
     return {
-      WORDPRESS_API: "https://unabo.be/wp-json/wp/v2",
+      WORDPRESS_API: "https://unabo.be/wp-json",
       WORDPRESS_SITE_URL: "https://unabo.be",
       MAX_IMAGE_SIZE: 5242880,
       ALLOWED_IMAGE_TYPES: [

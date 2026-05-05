@@ -21,7 +21,7 @@ export class PostManager {
       );
     }
 
-    this.apiUrl = apiUrl.replace(/\/+$/, "");
+    this.apiUrl = apiUrl.replace(/\/wp\/v2\/?$/, "").replace(/\/+$/, "");
     this.authToken = authToken;
     this.defaultHeaders = {
       "Content-Type": "application/json",
