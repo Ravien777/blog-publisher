@@ -1,6 +1,6 @@
 {
   "name": "blog-publisher-app",
-  "version": "2.2.10",
+  "version": "2.2.11",
   "description": "A desktop application for publishing blog posts and managing content on WordPress.",
   "author": "Tasfinity",
   "main": "main.js",
@@ -60,7 +60,10 @@
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "publisherName": [
+        "Tasfinity"
+      ]
     },
     "mac": {
       "target": [

@@ -2,14 +2,15 @@ name: Build & Release
 
 on:
   push:
-    tags: ["v*"]
+    tags:
+      - "v*"
 
 permissions:
   contents: write
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
+    name: Build ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -28,43 +29,8 @@ jobs:
       - name: Build production webpack
         run: npm run dist
 
-      - name: Build electron app (no publish)
-        run: ./node_modules/.bin/electron-builder --dir
+      - name: Build & Publish electron app
+        run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-${{ matrix.os }}
-          path: |
-            release/*.exe
-            release/*.blockmap
-            release/*.yml
-            release/*.AppImage
-            release/*.dmg
-          if-no-files-found: ignore
-
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          cache: npm
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release
-
-      - name: Publish release (using local electron-builder)
-        run: ./node_modules/.bin/electron-builder --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false # skip macOS signing
