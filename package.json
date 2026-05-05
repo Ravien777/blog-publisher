@@ -1,6 +1,6 @@
 {
   "name": "blog-publisher-app",
-  "version": "2.2.9",
+  "version": "2.2.10",
   "description": "A desktop application for publishing blog posts and managing content on WordPress.",
   "author": "Tasfinity",
   "main": "main.js",
@@ -35,8 +35,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "perMachine": false,
-      "publisherName": "Tasfinity"
+      "perMachine": false
     },
     "directories": {
       "output": "release",
