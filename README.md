@@ -1,4 +1,4 @@
-# Blog Publisher
+# WP Post Manager
 
 A desktop application for creating, editing, and publishing WordPress blog posts and pages with a rich Editor.js content editor.
 

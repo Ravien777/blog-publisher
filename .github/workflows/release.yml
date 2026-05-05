@@ -2,19 +2,14 @@ name: Build & Release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
 
 permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+  build-and-publish:
+    runs-on: ubuntu-latest # single OS, builds for all platforms
     steps:
       - uses: actions/checkout@v4
 
@@ -29,8 +24,7 @@ jobs:
       - name: Build production webpack
         run: npm run dist
 
-      - name: Build & Publish electron app
-        run: npx electron-builder --publish always
+      - name: Build & Publish electron app (all platforms)
+        run: npx electron-builder --publish always --win --linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false # skip macOS signing

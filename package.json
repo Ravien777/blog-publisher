@@ -1,6 +1,6 @@
 {
   "name": "blog-publisher-app",
-  "version": "2.2.6",
+  "version": "2.2.7",
   "description": "A desktop application for publishing blog posts and managing content on WordPress.",
   "author": "Tasfinity",
   "main": "main.js",
@@ -22,7 +22,7 @@
   },
   "build": {
     "appId": "com.example.blogpublisher",
-    "productName": "Blog Publisher",
+    "productName": "WP Post Manager",
     "publish": [
       {
         "provider": "github",

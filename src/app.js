@@ -183,7 +183,7 @@ if (process.env.NODE_ENV === "development") {
       };
     },
   };
-  console.log("🔧 Blog Publisher cache utils available: window.bpCache");
+  console.log("🔧 WP Post Manager cache utils available: window.bpCache");
 }
 
 // SEO Plugin Utilities - handles Yoast & Rank Math keyword mapping

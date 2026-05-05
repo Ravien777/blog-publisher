@@ -1,7 +1,7 @@
 /**
  * CacheManager.js
  * Lightweight localStorage cache with TTL, namespace isolation, and auto-invalidation.
- * Designed for WordPress post/page list caching in Blog Publisher.
+ * Designed for WordPress post/page list caching in WP Post Manager.
  */
 export class CacheManager {
   constructor(namespace = "bp_cache", defaultTTL = 5 * 60 * 1000) {
