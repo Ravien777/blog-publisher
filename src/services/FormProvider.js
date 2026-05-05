@@ -18,17 +18,25 @@ export class FormProvider {
 
   async detect() {
     if (this.loaded) return;
+
     // Try WPForms first
     try {
       const res = await fetch(`${this.apiUrl}/wpforms/v1/forms?per_page=50`, {
         headers: this.headers,
       });
       if (res.ok) {
-        this.plugin = "wpforms";
         const data = await res.json();
-        this.forms = Array.isArray(data) ? data : [];
+        const formsArray = Array.isArray(data) ? data : (data.forms || []);
+        if (formsArray.length > 0) {
+          this.plugin = "wpforms";
+          this.forms = formsArray.map((f) => ({
+            id: f.id,
+            title: f.name || f.title || `Form #${f.id}`,
+          }));
+        }
       }
     } catch {}
+
     if (!this.plugin) {
       // Try CF7
       try {
@@ -37,14 +45,15 @@ export class FormProvider {
           { headers: this.headers },
         );
         if (res.ok) {
-          this.plugin = "cf7";
           const data = await res.json();
-          this.forms = Array.isArray(data)
-            ? data.map((f) => ({
-                id: f.id,
-                title: f.title?.rendered || f.title || `Form #${f.id}`,
-              }))
-            : [];
+          const formsArray = Array.isArray(data) ? data : [];
+          if (formsArray.length > 0) {
+            this.plugin = "cf7";
+            this.forms = formsArray.map((f) => ({
+              id: f.id,
+              title: f.title?.rendered || f.title || `Form #${f.id}`,
+            }));
+          }
         }
       } catch {}
     }
