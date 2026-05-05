@@ -2303,6 +2303,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (window.electronAPI) {
     // Listen for update available
     window.electronAPI.onUpdateAvailable(() => {
+      console.log("📦 Update available event received"); // ADD THIS
       showToast("📦 Update available! Downloading in background...", "info");
     });
 
@@ -2313,6 +2314,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Listen for errors
     window.electronAPI.onUpdateError((error) => {
+      console.error("🛑 Update error:", error); // ADD THIS
       const msg =
         typeof error === "string"
           ? error

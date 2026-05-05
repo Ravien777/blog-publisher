@@ -92,6 +92,7 @@
     "@editorjs/quote": "^2.7.6",
     "@editorjs/underline": "^1.2.1",
     "editorjs-color-picker": "^1.0.8",
+    "electron-log": "^5.4.3",
     "electron-updater": "^6.8.3"
   }
 }
