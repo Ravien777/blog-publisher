@@ -22,7 +22,8 @@ export class ContactFormBlock {
     if (
       provider &&
       typeof provider.getPlugin === "function" &&
-      typeof provider.getForms === "function"
+      typeof provider.getForms === "function" &&
+      typeof provider.detect === "function"
     ) {
       this.formProvider = provider;
     } else {
