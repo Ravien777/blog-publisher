@@ -98,6 +98,11 @@ The repository includes built release artifacts under `release/`, such as:
 - Featured image uploads are limited by WordPress configuration and supported image types.
 - SEO keyword fields are designed to work with Yoast SEO and Rank Math plugin metadata.
 
+## Recently Fixed
+
+- Form Provider not loading forms
+- Auto updater
+
 ## License
 
 This project does not include a license file. Add one if you would like to clarify reuse terms.
