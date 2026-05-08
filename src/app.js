@@ -18,6 +18,7 @@ import "./style.css";
 import { ColumnsBlock } from "./blocks/ColumnsBlock.js";
 import { CustomButtonBlock } from "./blocks/CustomButton.js";
 import { ContactFormBlock } from "./blocks/ContactFormBlock.js";
+import { AccordionBlock } from "./blocks/AccordionBlock.js";
 import { ButtonInlineTool } from "./tools/ButtonInlineTool.js";
 
 import { HtmlToEditorJs } from "./converters/HtmlToEditorJs.js";
@@ -556,6 +557,23 @@ async function convertEditorJsToHTML(jsonData) {
           }
           break;
 
+        case "accordion":
+          if (block.data?.items?.length) {
+            html += `<div class="wp-block-accordion">`;
+            for (const item of block.data.items) {
+              const question = securityUtils.escapeHtml(item.question || "");
+              const answer = securityUtils.sanitizeInlineHtml(item.answer || "");
+              html += `
+                <details>
+                  <summary>${question}</summary>
+                  <div class="accordion-content">${answer}</div>
+                </details>
+              `;
+            }
+            html += `</div>`;
+          }
+          break;
+
         case "list":
           if (block.data?.items?.length) {
             const tag = block.data.style === "ordered" ? "ol" : "ul";
@@ -955,6 +973,10 @@ async function initializeEditor() {
           config: {
             formProvider: window.formProvider,
           },
+        },
+        accordion: {
+          class: AccordionBlock,
+          inlineToolbar: true,
         },
         "button-inline": ButtonInlineTool,
         list: {
