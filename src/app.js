@@ -18,6 +18,7 @@ import "./style.css";
 import { ColumnsBlock } from "./blocks/ColumnsBlock.js";
 import { CustomButtonBlock } from "./blocks/CustomButton.js";
 import { ContactFormBlock } from "./blocks/ContactFormBlock.js";
+import { AccordionBlock } from "./blocks/AccordionBlock.js";
 import { ButtonInlineTool } from "./tools/ButtonInlineTool.js";
 
 import { HtmlToEditorJs } from "./converters/HtmlToEditorJs.js";
@@ -94,6 +95,17 @@ const securityUtils = {
     ];
     const allowedAttributes = {
       a: ["href", "target", "rel"],
+      b: ["style"],
+      i: ["style"],
+      u: ["style"],
+      strong: ["style"],
+      em: ["style"],
+      code: ["style"],
+      mark: ["style"],
+      s: ["style"],
+      sub: ["style"],
+      sup: ["style"],
+      span: ["style"], // ColorPicker uses <span style="color:...">
     };
 
     // Recursive function to clean nodes
@@ -121,10 +133,30 @@ const securityUtils = {
             if (node.hasAttribute(attr)) {
               let value = node.getAttribute(attr);
 
-              // Special handling for href
               if (attr === "href") {
                 value = securityUtils.sanitizeUrl(value);
                 if (!value) continue;
+              }
+
+              // ✅ NEW: Sanitize style attribute to only allow color property
+              if (attr === "style") {
+                // Extract only color-related styles (prevent XSS via other CSS props)
+                const colorMatch = value.match(/color\s*:\s*([^;]+)/i);
+                if (colorMatch) {
+                  const colorValue = colorMatch[1].trim();
+                  // Validate color value (hex, rgb, rgba, hsl, named colors)
+                  if (
+                    /^#([0-9A-F]{3}){1,2}$|^rgb(a?)\([^)]+\)$|^hsl(a?)\([^)]+\)$|^[a-z]+$/i.test(
+                      colorValue,
+                    )
+                  ) {
+                    value = `color: ${colorValue}`;
+                  } else {
+                    continue; // Skip invalid color values
+                  }
+                } else {
+                  continue; // Skip style attributes without valid color
+                }
               }
 
               result += ` ${attr}="${securityUtils.escapeAttribute(value)}"`;
@@ -462,20 +494,17 @@ async function convertEditorJsToHTML(jsonData) {
           break;
 
         case "paragraph":
-          let paragraphText = securityUtils.sanitizeInlineHtml(
+          const paragraphText = securityUtils.sanitizeInlineHtml(
             block.data?.text || "",
           );
-
-          // ✅ FIX: Remove newlines that appear mid-sentence (not at paragraph boundaries)
-          // Strategy: Collapse multiple newlines to single, then remove newlines
-          // that are surrounded by word characters on both sides
-          paragraphText = paragraphText
-            .replace(/\r\n/g, "\n") // Normalize line endings
-            .replace(/\n{3,}/g, "\n\n") // 3+ newlines → paragraph break
-            .replace(/(\w)\n(\w)/g, "$1 $2"); // "word\nword" → "word word"
-
-          // Now safely convert remaining intentional line breaks
-          const htmlContent = paragraphText.replace(/\n/g, "<br>");
+          // Normalize newlines (from previous fix)
+          const normalizedText = paragraphText
+            .replace(/\r\n/g, "\n")
+            .replace(/\n{2,}/g, "\n")
+            .trim();
+          const htmlContent = normalizedText.includes("\n")
+            ? normalizedText.replace(/\n/g, "<br>")
+            : normalizedText;
           html += `<p>${htmlContent}</p>`;
           break;
 
@@ -553,6 +582,25 @@ async function convertEditorJsToHTML(jsonData) {
         case "contact-form":
           if (block.data?.formId && block.data?.plugin) {
             html += `<div class="wp-block-contact-form">${window.formProvider?.getShortcode(block.data.formId) || ""}</div>`;
+          }
+          break;
+
+        case "accordion":
+          if (block.data?.items?.length) {
+            html += `<div class="wp-block-accordion">`;
+            for (const item of block.data.items) {
+              const question = securityUtils.escapeHtml(item.question || "");
+              const answer = securityUtils.sanitizeInlineHtml(
+                item.answer || "",
+              );
+              html += `
+                <details>
+                  <summary>${question}</summary>
+                  <div class="accordion-content">${answer}</div>
+                </details>
+              `;
+            }
+            html += `</div>`;
           }
           break;
 
@@ -941,6 +989,11 @@ async function initializeEditor() {
         ColorPicker: {
           class: ColorPickerWithoutSanitize,
           inlineToolbar: true,
+          sanitize: {
+            span: {
+              style: true, // ← permits color: red, etc.
+            },
+          },
         },
         columns: {
           class: ColumnsBlock, // Custom block defined in ./blocks/ColumnsBlock.js
@@ -955,6 +1008,10 @@ async function initializeEditor() {
           config: {
             formProvider: window.formProvider,
           },
+        },
+        accordion: {
+          class: AccordionBlock,
+          inlineToolbar: true,
         },
         "button-inline": ButtonInlineTool,
         list: {

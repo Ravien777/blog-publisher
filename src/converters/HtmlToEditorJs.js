@@ -126,6 +126,37 @@ export class HtmlToEditorJs {
             }
           }
 
+          // ✅ NEW: Detect WordPress Accordion Block
+          if (tag === "div" && child.classList.contains("wp-block-accordion")) {
+            if (inlineBuffer.length > 0) flushInlineBuffer();
+
+            const detailsElements = Array.from(
+              child.querySelectorAll("details"),
+            );
+            if (detailsElements.length > 0) {
+              const items = detailsElements
+                .map((details) => {
+                  const summary = details.querySelector("summary");
+                  const content = details.querySelector(".accordion-content");
+                  return {
+                    question: summary?.textContent.trim() || "",
+                    answer: content?.innerHTML.trim() || "",
+                  };
+                })
+                .filter((item) => item.question && item.answer);
+
+              if (items.length > 0) {
+                blocks.push({
+                  type: "accordion",
+                  data: {
+                    items: items,
+                  },
+                });
+              }
+              continue; // Skip generic div handling
+            }
+          }
+
           const isBlock = [
             "p",
             "h1",

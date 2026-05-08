@@ -2001,3 +2001,161 @@ CUSTOM BUTTON EDITOR & PUBLISHED STYLES
 .wp-block-bg-wrapper > *:last-child {
   margin-bottom: 0;
 }
+
+/* ====================================
+   ACCORDION BLOCK STYLES
+   ==================================== */
+
+/* Block wrapper in editor */
+.cdx-accordion-block {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+}
+
+/* Block toolbar */
+.cdx-accordion-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.cdx-accordion-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cdx-accordion-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.cdx-accordion-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Items container */
+.cdx-accordion-items {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Individual accordion item */
+.cdx-accordion-item {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 16px;
+  position: relative;
+}
+
+/* Item header with label and remove button */
+.cdx-accordion-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.cdx-accordion-item-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.cdx-accordion-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cdx-accordion-remove:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.cdx-accordion-remove svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Question input */
+.cdx-accordion-question {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.cdx-accordion-question:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  background: var(--bg-secondary);
+}
+
+.cdx-accordion-question::placeholder {
+  color: var(--text-muted);
+}
+
+.cdx-accordion-question[readonly] {
+  background: var(--bg-tertiary);
+  cursor: default;
+}
+
+/* Answer contenteditable */
+.cdx-accordion-answer {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  transition: all 0.2s;
+}
+
+.cdx-accordion-answer:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  background: var(--bg-secondary);
+}
+
+.cdx-accordion-answer[contenteditable="false"] {
+  background: var(--bg-tertiary);
+  cursor: default;
+}

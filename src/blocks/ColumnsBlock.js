@@ -4,6 +4,7 @@ import Header from "@editorjs/header";
 import ImageTool from "@editorjs/image";
 import List from "@editorjs/list";
 import Quote from "@editorjs/quote";
+import { ColorPickerWithoutSanitize } from "editorjs-color-picker";
 
 import { CustomButtonBlock } from "./CustomButton.js";
 
@@ -93,6 +94,11 @@ export class ColumnsBlock {
       quote: { class: Quote, inlineToolbar: true },
 
       "custom-button": { class: CustomButtonBlock, inlineToolbar: true },
+
+      ColorPicker: {
+        class: ColorPickerWithoutSanitize,
+        inlineToolbar: true,
+      },
     };
   }
 
