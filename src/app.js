@@ -92,6 +92,7 @@ const securityUtils = {
       "sub",
       "sup",
       "br",
+      "span", // ✅ NEW: Allow span for ColorPicker inline styles
     ];
     const allowedAttributes = {
       a: ["href", "target", "rel"],
@@ -140,11 +141,11 @@ const securityUtils = {
 
               // ✅ NEW: Sanitize style attribute to only allow color property
               if (attr === "style") {
-                // Extract only color-related styles (prevent XSS via other CSS props)
+                // Extract only color-related styles
                 const colorMatch = value.match(/color\s*:\s*([^;]+)/i);
                 if (colorMatch) {
                   const colorValue = colorMatch[1].trim();
-                  // Validate color value (hex, rgb, rgba, hsl, named colors)
+                  // Validate color value
                   if (
                     /^#([0-9A-F]{3}){1,2}$|^rgb(a?)\([^)]+\)$|^hsl(a?)\([^)]+\)$|^[a-z]+$/i.test(
                       colorValue,
@@ -152,10 +153,10 @@ const securityUtils = {
                   ) {
                     value = `color: ${colorValue}`;
                   } else {
-                    continue; // Skip invalid color values
+                    continue; // Skip invalid
                   }
                 } else {
-                  continue; // Skip style attributes without valid color
+                  continue; // Skip style without color
                 }
               }
 
@@ -505,7 +506,7 @@ async function convertEditorJsToHTML(jsonData) {
           const htmlContent = normalizedText.includes("\n")
             ? normalizedText.replace(/\n/g, "<br>")
             : normalizedText;
-          html += `<p>${htmlContent}</p>`;
+          html += `<p>${htmlContent}</p>`; // ← <span> tags will be preserved here
           break;
 
         case "image":
@@ -916,7 +917,7 @@ async function initializeEditor() {
       tools: {
         header: {
           class: Header,
-          inlineToolbar: true,
+          inlineToolbar: ["bold", "italic", "link", "ColorPicker"],
           config: {
             placeholder: "Enter a header",
             levels: [1, 2, 3, 4, 5, 6],
@@ -925,7 +926,7 @@ async function initializeEditor() {
         },
         paragraph: {
           class: Paragraph,
-          inlineToolbar: true,
+          inlineToolbar: ["bold", "italic", "link", "ColorPicker"],
         },
         image: {
           class: ImageTool,
@@ -987,11 +988,13 @@ async function initializeEditor() {
           },
         },
         ColorPicker: {
-          class: ColorPickerWithoutSanitize,
+          class: ColorPicker,
           inlineToolbar: true,
           sanitize: {
             span: {
-              style: true, // ← permits color: red, etc.
+              style: {
+                color: true, // ✅ Only allow color property
+              },
             },
           },
         },
@@ -1016,7 +1019,7 @@ async function initializeEditor() {
         "button-inline": ButtonInlineTool,
         list: {
           class: List,
-          inlineToolbar: true,
+          inlineToolbar: ["bold", "italic", "link", "ColorPicker"],
         },
         quote: {
           class: Quote,
@@ -2151,6 +2154,25 @@ function setupEventHandlers(editor) {
 
         // 2. Get & process editor data
         const outputData = await window.editorInstance.save();
+
+        console.log(
+          "🔍 FULL EDITOR DATA:",
+          JSON.stringify(outputData, null, 2),
+        );
+
+        // Find blocks with colored text
+        outputData.blocks.forEach((block, idx) => {
+          if (
+            block.data?.text?.includes("style") ||
+            block.data?.text?.includes("span")
+          ) {
+            console.log(
+              `🎨 Block ${idx} (${block.type}) has styled content:`,
+              block.data.text,
+            );
+          }
+        });
+
         const updatedData = await uploadPendingImages(outputData);
         const filteredData = {
           ...updatedData,
@@ -2222,8 +2244,6 @@ function setupEventHandlers(editor) {
         const targetUrl = editingPostId
           ? `${baseEndpoint}/${editingPostId}`
           : baseEndpoint;
-
-        console.log("Publishing payload:", JSON.stringify(payload, null, 2));
 
         const response = await fetch(targetUrl, {
           method: "POST",

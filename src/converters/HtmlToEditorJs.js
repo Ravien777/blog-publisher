@@ -216,10 +216,12 @@ export class HtmlToEditorJs {
           let pText = el.innerHTML
             .replace(/\u00A0/g, " ")
             .replace(/\u200B/g, "")
-            .replace(/<br\s*\/?>/gi, " ") // ✅ Convert <br> to space, not newline
+            .replace(/<br\s*\/?>/gi, " ")
             .replace(/\s+/g, " ")
             .trim();
 
+          // ✅ Preserve <span style="color:..."> by NOT stripping valid color spans
+          // The sanitizer will handle validation on output, so keep them here
           if (!pText || /^[\s<br\/>]*$/i.test(pText)) {
             break;
           }

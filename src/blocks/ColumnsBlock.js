@@ -4,7 +4,7 @@ import Header from "@editorjs/header";
 import ImageTool from "@editorjs/image";
 import List from "@editorjs/list";
 import Quote from "@editorjs/quote";
-import { ColorPickerWithoutSanitize } from "editorjs-color-picker";
+import ColorPicker, { ColorPickerWithoutSanitize } from "editorjs-color-picker";
 
 import { CustomButtonBlock } from "./CustomButton.js";
 
@@ -56,9 +56,13 @@ export class ColumnsBlock {
 
   _getNestedToolsConfig() {
     return {
-      paragraph: { class: Paragraph, inlineToolbar: true },
+      paragraph: {
+        class: Paragraph,
+        inlineToolbar: ["bold", "italic", "link", "ColorPicker"],
+      },
       header: {
         class: Header,
+        inlineToolbar: ["bold", "italic", "link", "ColorPicker"],
         config: { levels: [2, 3, 4, 5, 6], defaultLevel: 2 },
       },
       image: {
@@ -90,14 +94,23 @@ export class ColumnsBlock {
           },
         },
       },
-      list: { class: List, inlineToolbar: true },
-      quote: { class: Quote, inlineToolbar: true },
+      list: {
+        class: List,
+        inlineToolbar: ["bold", "italic", "link", "ColorPicker"],
+      },
+      quote: {
+        class: Quote,
+        inlineToolbar: ["bold", "italic", "link", "ColorPicker"],
+      },
 
       "custom-button": { class: CustomButtonBlock, inlineToolbar: true },
 
       ColorPicker: {
-        class: ColorPickerWithoutSanitize,
+        class: ColorPicker,
         inlineToolbar: true,
+        sanitize: {
+          span: { style: { color: true } },
+        },
       },
     };
   }
