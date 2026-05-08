@@ -28,6 +28,7 @@ import { LibraryView } from "./components/LibraryView.js";
 import { CacheManager, cache } from "./utils/CacheManagers.js";
 import { AuthManager } from "./services/AuthManager.js";
 import { ImageUploader } from "./services/ImageUploader.js";
+import { cleanPastedHTML } from "./utils/PasteSanitizer.js";
 
 // Initialize service singletons
 const authManager = new AuthManager();
@@ -1041,6 +1042,23 @@ async function initializeEditor() {
           });
       },
     });
+
+    // ========================================
+    // STEP B: Paste normalization handler
+    // Intercepts paste events and cleans HTML from Word, LibreOffice, ChatGPT
+    // ========================================
+    editor.onPaste = async (event) => {
+      try {
+        const originalHTML = event.detail.data.innerHTML;
+        if (originalHTML) {
+          const cleanHTML = cleanPastedHTML(originalHTML);
+          event.detail.data.innerHTML = cleanHTML;
+        }
+      } catch (error) {
+        console.warn("Paste sanitization failed:", error);
+        // Fail gracefully - let original paste through
+      }
+    };
 
     setupEventHandlers(editor);
 

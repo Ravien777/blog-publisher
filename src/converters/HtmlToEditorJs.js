@@ -29,8 +29,20 @@ export class HtmlToEditorJs {
       const tempDiv = document.createElement("div");
       inlineBuffer.forEach((node) => tempDiv.appendChild(node));
 
-      // Preserve internal spacing, collapse indentation/newlines to single spaces
-      let html = tempDiv.innerHTML.replace(/\s+/g, " ").trim();
+      // Check if we're inside a <pre> or <code> block - preserve spacing there
+      const isPreformatted = tempDiv.querySelector("pre, code") !== null;
+
+      let html = tempDiv.innerHTML;
+
+      if (!isPreformatted) {
+        // Replace non-breaking spaces and zero-width spaces with regular spaces
+        html = html.replace(/\u00A0/g, " ").replace(/\u200B/g, "");
+        // Collapse multiple whitespace characters to single space
+        html = html.replace(/\s+/g, " ").trim();
+      } else {
+        // For preformatted text, just trim outer whitespace
+        html = html.trim();
+      }
 
       if (html) {
         blocks.push({
@@ -171,7 +183,12 @@ export class HtmlToEditorJs {
       switch (tag) {
         case "p":
           // Direct innerHTML preserves exact inline spacing/formatting
-          const pText = el.innerHTML.replace(/\s+/g, " ").trim();
+          // But clean up non-breaking spaces and zero-width spaces
+          let pText = el.innerHTML
+            .replace(/\u00A0/g, " ") // Non-breaking space → regular space
+            .replace(/\u200B/g, "") // Remove zero-width spaces
+            .replace(/\s+/g, " ") // Collapse multiple spaces
+            .trim();
           if (pText)
             blocks.push({
               type: "paragraph",
@@ -190,7 +207,11 @@ export class HtmlToEditorJs {
           blocks.push({
             type: "header",
             data: {
-              text: el.innerHTML.replace(/\s+/g, " ").trim(),
+              text: el.innerHTML
+                .replace(/\u00A0/g, " ") // Non-breaking space → regular space
+                .replace(/\u200B/g, "") // Remove zero-width spaces
+                .replace(/\s+/g, " ") // Collapse multiple spaces
+                .trim(),
               level: parseInt(tag.charAt(1), 10),
             },
           });
@@ -199,7 +220,11 @@ export class HtmlToEditorJs {
         case "ul":
         case "ol":
           const items = Array.from(el.querySelectorAll("li")).map((li) =>
-            li.innerHTML.replace(/\s+/g, " ").trim(),
+            li.innerHTML
+              .replace(/\u00A0/g, " ") // Non-breaking space → regular space
+              .replace(/\u200B/g, "") // Remove zero-width spaces
+              .replace(/\s+/g, " ") // Collapse multiple spaces
+              .trim(),
           );
           if (items.length > 0) {
             blocks.push({
@@ -214,9 +239,16 @@ export class HtmlToEditorJs {
 
         case "blockquote":
           const quoteText =
-            el.querySelector("p")?.innerHTML.replace(/\s+/g, " ").trim() ||
+            el
+              .querySelector("p")
+              ?.innerHTML.replace(/\u00A0/g, " ") // Non-breaking space → regular space
+              .replace(/\u200B/g, "") // Remove zero-width spaces
+              .replace(/\s+/g, " ") // Collapse multiple spaces
+              .trim() ||
             el.innerHTML
               .replace(/<cite[^>]*>[\s\S]*?<\/cite>/gi, "")
+              .replace(/\u00A0/g, " ") // Non-breaking space → regular space
+              .replace(/\u200B/g, "") // Remove zero-width spaces
               .replace(/\s+/g, " ")
               .trim();
           const cite = el.querySelector("cite");
@@ -273,7 +305,11 @@ export class HtmlToEditorJs {
 
     // Fallback: If no blocks found but text exists
     if (blocks.length === 0) {
-      const plainText = doc.body.textContent.replace(/\s+/g, " ").trim();
+      const plainText = doc.body.textContent
+        .replace(/\u00A0/g, " ") // Non-breaking space → regular space
+        .replace(/\u200B/g, "") // Remove zero-width spaces
+        .replace(/\s+/g, " ") // Collapse multiple spaces
+        .trim();
       if (plainText) {
         blocks.push({
           type: "paragraph",
