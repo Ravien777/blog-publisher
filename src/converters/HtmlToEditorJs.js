@@ -182,20 +182,23 @@ export class HtmlToEditorJs {
     const processBlockElement = (el, tag) => {
       switch (tag) {
         case "p":
-          // Direct innerHTML preserves exact inline spacing/formatting
-          // But clean up non-breaking spaces and zero-width spaces
           let pText = el.innerHTML
-            .replace(/\u00A0/g, " ") // Non-breaking space → regular space
-            .replace(/\u200B/g, "") // Remove zero-width spaces
-            .replace(/\s+/g, " ") // Collapse multiple spaces
+            .replace(/\u00A0/g, " ")
+            .replace(/\u200B/g, "")
+            .replace(/<br\s*\/?>/gi, " ") // ✅ Convert <br> to space, not newline
+            .replace(/\s+/g, " ")
             .trim();
-          if (pText)
+
+          if (!pText || /^[\s<br\/>]*$/i.test(pText)) {
+            break;
+          }
+
+          if (pText) {
             blocks.push({
               type: "paragraph",
-              data: {
-                text: pText,
-              },
+              data: { text: pText },
             });
+          }
           break;
 
         case "h1":

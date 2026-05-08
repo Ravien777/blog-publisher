@@ -90,6 +90,42 @@ export function cleanPastedHTML(htmlString) {
     }
   });
 
+  // Step 7: Remove mid-paragraph newlines from text nodes (preserve <pre>/<code>)
+  const walker = document.createTreeWalker(
+    doc.body,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false,
+  );
+  const textNodes = [];
+  let node;
+  while ((node = walker.nextNode())) {
+    if (!node.parentElement?.closest("pre, code")) {
+      textNodes.push(node);
+    }
+  }
+  textNodes.forEach((textNode) => {
+    // Replace newline between word chars with space: "foo\nbar" → "foo bar"
+    textNode.nodeValue = textNode.nodeValue.replace(/(\w)\n(\w)/g, "$1 $2");
+    // Collapse multiple newlines to single
+    textNode.nodeValue = textNode.nodeValue.replace(/\n{2,}/g, "\n");
+  });
+
+  // Step 8: Remove excessive <br> tags (3+ consecutive become 1)
+  doc.body.innerHTML = doc.body.innerHTML
+    .replace(/(<br\s*\/?>\s*){3,}/gi, "<br>") // 3+ <br> → 1
+    .replace(/<p>\s*(<br\s*\/?>\s*)+<\/p>/gi, "<p></p>"); // Empty p with only <br>
+
+  // Step 9: Remove truly empty paragraphs
+  const allParagraphs = doc.body.querySelectorAll("p");
+  allParagraphs.forEach((p) => {
+    const content = p.innerHTML
+      .trim()
+      .replace(/<br\s*\/?>/gi, "")
+      .trim();
+    if (!content) p.remove();
+  });
+
   return doc.body.innerHTML;
 }
 

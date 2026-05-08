@@ -462,10 +462,21 @@ async function convertEditorJsToHTML(jsonData) {
           break;
 
         case "paragraph":
-          const paragraphText = securityUtils.sanitizeInlineHtml(
+          let paragraphText = securityUtils.sanitizeInlineHtml(
             block.data?.text || "",
           );
-          html += `<p>${paragraphText.replace(/\n/g, "<br>")}</p>`;
+
+          // ✅ FIX: Remove newlines that appear mid-sentence (not at paragraph boundaries)
+          // Strategy: Collapse multiple newlines to single, then remove newlines
+          // that are surrounded by word characters on both sides
+          paragraphText = paragraphText
+            .replace(/\r\n/g, "\n") // Normalize line endings
+            .replace(/\n{3,}/g, "\n\n") // 3+ newlines → paragraph break
+            .replace(/(\w)\n(\w)/g, "$1 $2"); // "word\nword" → "word word"
+
+          // Now safely convert remaining intentional line breaks
+          const htmlContent = paragraphText.replace(/\n/g, "<br>");
+          html += `<p>${htmlContent}</p>`;
           break;
 
         case "image":
@@ -2084,7 +2095,18 @@ function setupEventHandlers(editor) {
         // 2. Get & process editor data
         const outputData = await window.editorInstance.save();
         const updatedData = await uploadPendingImages(outputData);
-        const htmlContent = await convertEditorJsToHTML(updatedData);
+        const filteredData = {
+          ...updatedData,
+          blocks: updatedData.blocks.filter((block) => {
+            if (!block?.data) return false;
+            if (block.type === "paragraph") {
+              const text = block.data.text?.trim() || "";
+              return text.length > 0 && !/^[\s<br\/>]*$/.test(text);
+            }
+            return true; // Keep non-paragraph blocks as-is
+          }),
+        };
+        const htmlContent = await convertEditorJsToHTML(filteredData);
 
         // 3. Collect form data
         const title = document.getElementById("postTitle")?.value || "Untitled";
