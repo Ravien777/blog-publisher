@@ -2001,3 +2001,253 @@ CUSTOM BUTTON EDITOR & PUBLISHED STYLES
 .wp-block-bg-wrapper > *:last-child {
   margin-bottom: 0;
 }
+
+/* ====================================
+   ACCORDION BLOCK STYLES
+   ==================================== */
+
+/* Block wrapper in editor */
+.cdx-accordion-block {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+}
+
+/* Block toolbar */
+.cdx-accordion-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.cdx-accordion-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cdx-accordion-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.cdx-accordion-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Items container */
+.cdx-accordion-items {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Individual accordion item */
+.cdx-accordion-item {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 16px;
+  position: relative;
+}
+
+/* Item header with label and remove button */
+.cdx-accordion-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.cdx-accordion-item-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.cdx-accordion-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cdx-accordion-remove:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.cdx-accordion-remove svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Question input */
+.cdx-accordion-question {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.cdx-accordion-question:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  background: var(--bg-secondary);
+}
+
+.cdx-accordion-question::placeholder {
+  color: var(--text-muted);
+}
+
+.cdx-accordion-question[readonly] {
+  background: var(--bg-tertiary);
+  cursor: default;
+}
+
+/* Answer contenteditable */
+.cdx-accordion-answer {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  transition: all 0.2s;
+}
+
+.cdx-accordion-answer:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  background: var(--bg-secondary);
+}
+
+.cdx-accordion-answer[contenteditable="false"] {
+  background: var(--bg-tertiary);
+  cursor: default;
+}
+
+/* Frontend WordPress block styles */
+.wp-block-accordion {
+  margin: 24px 0;
+}
+
+.wp-block-accordion details {
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color, #dcdcde);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-secondary, #f5f5f5);
+}
+
+[data-theme="dark"] .wp-block-accordion details {
+  border-color: var(--border-color, #3e3e42);
+  background: var(--bg-secondary, #252526);
+}
+
+.wp-block-accordion summary {
+  padding: 14px 18px;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary, #1d2327);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.2s;
+}
+
+.wp-block-accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.wp-block-accordion summary:hover {
+  background: var(--bg-tertiary, #e9ecef);
+}
+
+[data-theme="dark"] .wp-block-accordion summary:hover {
+  background: var(--bg-tertiary, #2d2d30);
+}
+
+.wp-block-accordion summary::after {
+  content: "+";
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--text-muted, #8c8f94);
+  margin-left: 12px;
+  transition: transform 0.2s;
+}
+
+.wp-block-accordion details[open] summary::after {
+  content: "−";
+}
+
+.wp-block-accordion .accordion-content {
+  padding: 0 18px 16px 18px;
+  color: var(--text-secondary, #50575e);
+  line-height: 1.7;
+  border-top: 1px solid var(--border-color, #dcdcde);
+  margin-top: 0;
+}
+
+.wp-block-accordion .accordion-content p:first-child {
+  margin-top: 12px;
+}
+
+.wp-block-accordion .accordion-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .cdx-accordion-block {
+    padding: 12px;
+  }
+  
+  .cdx-accordion-item {
+    padding: 12px;
+  }
+  
+  .wp-block-accordion summary {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+  
+  .wp-block-accordion .accordion-content {
+    padding: 0 14px 12px 14px;
+  }
+}
