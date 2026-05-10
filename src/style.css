@@ -14,6 +14,7 @@
   --danger: #d63638;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --branding-primary-color: #7272ff;
 }
 
 [data-theme="dark"] {
@@ -31,6 +32,7 @@
   --danger: #e74c3c;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --branding-primary-color: #7272ff;
 }
 
 /* ====================================
@@ -2158,4 +2160,20 @@ CUSTOM BUTTON EDITOR & PUBLISHED STYLES
 .cdx-accordion-answer[contenteditable="false"] {
   background: var(--bg-tertiary);
   cursor: default;
+}
+
+/* Apply branding color when active */
+.codex-editor[data-branding-active="true"] .ce-header,
+.codex-editor[data-branding-active="true"] .ce-header span,
+.codex-editor[data-branding-active="true"] .ce-toolbar__button--active,
+.codex-editor[data-branding-active="true"] .ce-inline-tool--active {
+  color: var(--branding-primary-color) !important;
+}
+
+.codex-editor[data-branding-active="true"] .cdx-button-preview {
+  background-color: var(--branding-primary-color) !important;
+}
+
+.codex-editor[data-branding-active="true"] .ce-delimiter hr {
+  border-top-color: var(--branding-primary-color) !important;
 }

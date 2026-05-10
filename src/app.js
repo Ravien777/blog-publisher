@@ -41,6 +41,9 @@ let currentEditingType = "post"; // NEW: Tracks if we are editing a post or page
 let detectedSeoPlugin = null; // 'yoast', 'rank-math', or null
 let hasUnsavedChanges = false; // ✅ NEW: Tracks unsaved editor state
 
+let brandingToggleEl = null;
+let brandingColorEl = null;
+
 // Security utility functions
 const securityUtils = {
   escapeHtml: (text) => {
@@ -840,6 +843,58 @@ async function checkYoastAvailability() {
   }
 }
 
+// ============ BRANDING HELPER FUNCTIONS ============
+function handleBrandingToggleChange() {
+  const colorGroup = document.getElementById("branding-color-group");
+  const isOn = brandingToggleEl?.checked;
+
+  if (colorGroup) {
+    colorGroup.style.display = isOn ? "block" : "none";
+  }
+
+  if (isOn && brandingColorEl?.value) {
+    applyBrandingToEditor(brandingColorEl.value);
+  } else {
+    clearBrandingFromEditor();
+  }
+  hasUnsavedChanges = true;
+}
+
+function handleBrandingColorChange() {
+  if (brandingToggleEl?.checked && brandingColorEl?.value) {
+    applyBrandingToEditor(brandingColorEl.value);
+    hasUnsavedChanges = true;
+  }
+}
+
+function applyBrandingToEditor(color) {
+  // Set CSS variable on holder (for inheritance)
+  const editorHolder = document.getElementById("editorjs");
+  if (!editorHolder || !color) return;
+
+  editorHolder.style.setProperty("--branding-primary-color", color);
+
+  // Set attribute on actual .codex-editor element (where CSS looks for it)
+  const codexEditor = editorHolder.querySelector(".codex-editor");
+  if (codexEditor) {
+    codexEditor.setAttribute("data-branding-active", "true");
+  }
+}
+
+function clearBrandingFromEditor() {
+  const editorHolder = document.getElementById("editorjs");
+  if (!editorHolder) return;
+
+  editorHolder.style.removeProperty("--branding-primary-color");
+
+  // Remove attribute from actual .codex-editor element
+  const codexEditor = editorHolder.querySelector(".codex-editor");
+  if (codexEditor) {
+    codexEditor.removeAttribute("data-branding-active");
+  }
+}
+// ===============================================
+
 // Initialize Editor.js with proper configuration
 async function initializeEditor() {
   try {
@@ -1298,6 +1353,29 @@ async function loadPostIntoEditor(post) {
         fullWidthInput.checked =
           post.meta._full_width_page == 1 || post.meta._full_width_page === "1";
       }
+
+      // Load branding settings
+      if (brandingToggleEl && brandingColorEl) {
+        const applyBranding =
+          post.meta?._apply_branding === true ||
+          post.meta?._apply_branding === "1" ||
+          post.meta?._apply_branding === 1;
+
+        brandingToggleEl.checked = applyBranding;
+
+        if (post.meta?._branding_primary_color) {
+          brandingColorEl.value = post.meta._branding_primary_color;
+        }
+
+        const colorGroup = document.getElementById("branding-color-group");
+        if (applyBranding) {
+          if (colorGroup) colorGroup.style.display = "block";
+          applyBrandingToEditor(brandingColorEl.value);
+        } else {
+          if (colorGroup) colorGroup.style.display = "none";
+          clearBrandingFromEditor();
+        }
+      }
     }
     updatePageOptionsVisibility();
 
@@ -1715,8 +1793,9 @@ function createPageOptionsSection() {
   const section = document.createElement("div");
   section.className = "config-section";
   section.id = "page-options-section";
-  section.style.display = "none"; // Hidden by default
+  section.style.display = "none";
 
+  // Include branding toggle and color picker
   section.innerHTML = `
     <h3>Page Options</h3>
     <div class="form-group">
@@ -1731,8 +1810,31 @@ function createPageOptionsSection() {
       </label>
       <small style="color:var(--text-muted);font-size:10px;">Removes sidebar via theme template</small>
     </div>
+    <div class="form-group">
+      <label style="display:none;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="brandingToggle"> Apply Site Branding
+      </label>
+      <small style="display:none;color:var(--text-muted);font-size:10px;">Override default primary colour</small>
+    </div>
+    <div class="form-group" id="branding-color-group" style="display:none;">
+      <label for="brandingColor">Primary Colour</label>
+      <input type="color" id="brandingColor" value="#007acc">
+    </div>
   `;
+
   sidebar.appendChild(section);
+
+  // ✅ Initialize module-level references AFTER DOM insertion
+  brandingToggleEl = document.getElementById("brandingToggle");
+  brandingColorEl = document.getElementById("brandingColor");
+
+  // Attach event listeners
+  if (brandingToggleEl) {
+    brandingToggleEl.addEventListener("change", handleBrandingToggleChange);
+  }
+  if (brandingColorEl) {
+    brandingColorEl.addEventListener("input", handleBrandingColorChange);
+  }
 }
 
 function updatePageOptionsVisibility() {
@@ -2224,7 +2326,7 @@ function setupEventHandlers(editor) {
         // ✅ NEW: Capture Page Options
         if (currentEditingType === "page") {
           payload.meta = {
-            ...(payload.meta || {}),
+            ...payload.meta,
             _is_sea_page: document.getElementById("seaPageToggle")?.checked
               ? 1
               : 0,
@@ -2232,6 +2334,8 @@ function setupEventHandlers(editor) {
               ?.checked
               ? 1
               : 0,
+            _apply_branding: brandingToggleEl?.checked ? true : false,
+            _branding_primary_color: brandingColorEl?.value || "#7272ff",
           };
         }
 
@@ -2311,6 +2415,15 @@ function setupEventHandlers(editor) {
       if (featuredImageInput) {
         featuredImageInput.value = "";
       }
+
+      // BRANDING: reset branding UI
+      const brandingToggle = document.getElementById("brandingToggle");
+      const brandingColor = document.getElementById("brandingColor");
+      const colorGroup = document.getElementById("branding-color-group");
+      if (brandingToggle) brandingToggle.checked = false;
+      if (brandingColor) brandingColor.value = "#7272ff";
+      if (colorGroup) colorGroup.style.display = "none";
+      clearBrandingFromEditor();
 
       setTimeout(() => {
         editor.blocks.insert("paragraph", {
